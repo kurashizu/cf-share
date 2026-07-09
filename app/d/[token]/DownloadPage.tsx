@@ -106,8 +106,15 @@ export function DownloadPage({ token }: Props) {
       };
       if (data.verified && data.downloadUrl) {
         setDownloadUrl(data.downloadUrl);
-        // Redirect to S3
-        window.location.href = data.downloadUrl;
+        setVerifying(false);
+        // Open the presigned S3 URL in a new tab. This avoids navigating
+        // the current page away, so the UI doesn't stay stuck at
+        // "Verifying…".
+        const win = window.open(data.downloadUrl, "_blank");
+        if (!win) {
+          // Popup blocker — fall back to same-window navigation.
+          window.location.href = data.downloadUrl;
+        }
       } else {
         throw new Error(data.error || "Verification failed");
       }
