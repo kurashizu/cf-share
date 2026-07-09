@@ -1,9 +1,12 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useDropzone } from "react-dropzone";
 import { FileItem, type UploadState } from "./FileItem";
 import { ResultPanel } from "./ResultPanel";
+
+/** Number of samples to keep for speed calculation (rolling window). */
+const SPEED_SAMPLES = 10;
 
 interface CompletedUpload {
   shareToken: string;
@@ -15,12 +18,19 @@ interface CompletedUpload {
   startedAt: number;
 }
 
+interface SpeedSample {
+  loaded: number;
+  at: number;
+}
+
 interface ActiveUpload {
   file: File;
   state: UploadState;
   xhr: XMLHttpRequest | null;
   uploadId: string | null;
   startedAt: number;
+  /** Rolling bytes-loaded samples for speed calculation. */
+  speedSamples: SpeedSample[];
 }
 
 interface SingleInitResponse {
@@ -69,6 +79,20 @@ export function Uploader() {
   const [password, setPassword] = useState("");
   const cancelledRef = useRef(false);
 
+  // Warn user before closing tab during an active upload
+  useEffect(() => {
+    if (
+      active &&
+      (active.state.kind === "uploading" || active.state.kind === "preparing")
+    ) {
+      const handler = (e: BeforeUnloadEvent) => {
+        e.preventDefault();
+      };
+      window.addEventListener("beforeunload", handler);
+      return () => window.removeEventListener("beforeunload", handler);
+    }
+  }, [active]);
+
   const startUpload = useCallback(
     async (file: File) => {
       cancelledRef.current = false;
@@ -86,6 +110,7 @@ export function Uploader() {
         xhr: null,
         uploadId: null,
         startedAt,
+        speedSamples: [],
       });
 
       let init: InitResponse;
@@ -116,6 +141,7 @@ export function Uploader() {
           xhr: null,
           uploadId: null,
           startedAt,
+          speedSamples: [],
         });
         return;
       }
@@ -147,6 +173,45 @@ export function Uploader() {
     [ttl, password],
   );
 
+  /** Update active state with progress and speed tracking. */
+  function setProgress(
+    file: File,
+    loaded: number,
+    total: number,
+    partInfo?: string,
+  ) {
+    setActive((prev) => {
+      if (!prev || prev.file !== file) return prev;
+      const now = Date.now();
+      const samples = [...prev.speedSamples, { loaded, at: now }].slice(
+        -SPEED_SAMPLES,
+      );
+      // Calculate speed: (latest - earliest) / time_delta
+      let speed = 0;
+      if (samples.length >= 2) {
+        const first = samples[0];
+        const last = samples[samples.length - 1];
+        const deltaBytes = last.loaded - first.loaded;
+        const deltaMs = last.at - first.at;
+        if (deltaMs > 200) {
+          speed = (deltaBytes / deltaMs) * 1000; // bytes/sec
+        }
+      }
+      return {
+        ...prev,
+        speedSamples: samples,
+        state: {
+          kind: "uploading" as const,
+          progress: total > 0 ? loaded / total : 0,
+          loaded,
+          total,
+          speed,
+          partInfo,
+        },
+      };
+    });
+  }
+
   /** Single PUT upload (files ≤ ~90 MB). */
   async function doSingleUpload(
     file: File,
@@ -159,21 +224,23 @@ export function Uploader() {
     const xhr = new XMLHttpRequest();
     setActive({
       file,
-      state: { kind: "uploading", progress: 0 },
+      state: {
+        kind: "uploading",
+        progress: 0,
+        loaded: 0,
+        total: file.size,
+        speed: 0,
+      },
       xhr,
       uploadId: init.uploadId,
       startedAt,
+      speedSamples: [],
     });
 
     const done = new Promise<{ etag: string }>((resolve, reject) => {
       xhr.upload.addEventListener("progress", (e) => {
         if (e.lengthComputable) {
-          const progress = e.loaded / e.total;
-          setActive((prev) =>
-            prev && prev.file === file
-              ? { ...prev, state: { kind: "uploading", progress } }
-              : prev,
-          );
+          setProgress(file, e.loaded, e.total);
         }
       });
       xhr.addEventListener("load", () => {
@@ -213,6 +280,7 @@ export function Uploader() {
         xhr: null,
         uploadId: null,
         startedAt,
+        speedSamples: [],
       });
       return;
     }
@@ -256,34 +324,22 @@ export function Uploader() {
       const blob = file.slice(start, end);
 
       const xhr = new XMLHttpRequest();
-      setActive({
-        file,
-        state: {
-          kind: "uploading",
-          progress: totalLoaded / totalSize,
-          partInfo: `Part ${part.partNumber}/${parts.length}`,
-        },
-        xhr,
-        uploadId: init.uploadId,
-        startedAt,
-      });
 
       const uploaded = await new Promise<{ etag: string }>(
         (resolve, reject) => {
+          // Must open + send INSIDE the executor so the promise resolves on load
+          xhr.open("PUT", part.url);
+          // Multipart presigned URLs already have the signature baked in;
+          // no additional headers needed.
+
           xhr.upload.addEventListener("progress", (e) => {
             if (e.lengthComputable) {
               const partProgress = totalLoaded + e.loaded;
-              setActive((prev) =>
-                prev && prev.file === file
-                  ? {
-                      ...prev,
-                      state: {
-                        kind: "uploading",
-                        progress: partProgress / totalSize,
-                        partInfo: `Part ${part.partNumber}/${parts.length}`,
-                      },
-                    }
-                  : prev,
+              setProgress(
+                file,
+                partProgress,
+                totalSize,
+                `Part ${part.partNumber}/${parts.length}`,
               );
             }
           });
@@ -306,6 +362,8 @@ export function Uploader() {
             reject(new Error(`Part ${part.partNumber} network error`)),
           );
           xhr.addEventListener("abort", () => reject(new Error("Cancelled")));
+
+          xhr.send(blob);
         },
       );
 
@@ -390,6 +448,7 @@ export function Uploader() {
         xhr: null,
         uploadId: null,
         startedAt,
+        speedSamples: [],
       });
     }
   }

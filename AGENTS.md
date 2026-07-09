@@ -5,68 +5,66 @@ Agent orientation for `cf-share`.
 ## Project
 
 Minimal file-sharing web app. Visitors upload a single file and receive a
-short-lived download link. No login. No accounts. No admin UI.
+short-lived download link. No login required.
 
-## Workers / Routes
+Live at https://share.022025.xyz
 
-- `cf-share` (this directory) — single Worker. Serves the upload page,
-  `POST /api/upload/init`, `POST /api/upload/complete`, and `GET /d/:token`.
-- No cron worker yet — daily cleanup runs as a `triggers.crons` handler
-  inside this same Worker (`app/api/cron/cleanup/route.ts`, scheduled for M4).
+## Routes
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/` | Upload page (drag-and-drop) |
+| GET | `/docs` | API documentation |
+| GET | `/admin` | Admin panel (HTTP Basic auth) |
+| GET | `/d/:token` | Download page (HTML) |
+| GET | `/api/download/:token` | 302 to presigned S3 URL |
+| POST | `/api/download/:token` | Password verification |
+| POST | `/api/upload/init` | Reserve presigned PUT URL |
+| POST | `/api/upload/complete` | Mint share token |
+| GET | `/api/health` | Health check |
+| GET/POST | `/api/cron/cleanup` | Manual cleanup trigger |
+| GET | `/api/admin/shares` | List shares (auth) |
+| GET | `/api/admin/audit` | Audit log (auth) |
+| DELETE | `/api/admin/delete` | Delete share (auth) |
 
 ## D1 Database
 
-Created via `npx wrangler d1 create cf-share-db` (paste returned
-`database_id` into `wrangler.jsonc`).
+Schema in `database/schema.sql`.
 
-Schema lives in `database/schema.sql`. Apply locally with
-`wrangler d1 execute DB --local --file=database/schema.sql` and remotely
-with `wrangler d1 execute DB --remote --file=database/schema.sql`.
-
-| Table          | Purpose                                                         |
-|----------------|-----------------------------------------------------------------|
-| `shares`       | One row per share token (token, s3 prefix, ttl, counts, ip)     |
-| `share_files`  | One row per file in a share (s3 key, filename, size, etag)      |
-| `upload_quota` | Per-IP daily byte/count totals (5 GB / 100 files hard caps)     |
-| `audit_log`    | All init / complete / download / expire events                  |
+| Table | Purpose |
+|-------|---------|
+| `shares` | Share tokens, S3 keys, TTL, password hash |
+| `upload_quota` | Per-IP daily byte/count totals |
+| `audit_log` | All init/complete/download/expire/delete events |
 
 ## S3 Storage
 
-Single bucket (`S3_BUCKET` env, default `cf-share`) on `s3api.022025.xyz`.
+Single bucket (`cf-share`) on `s3api.022025.xyz`.
+Key layout: `uploads/{YYYY}/{MM}/{DD}/{share-token}/{filename}`
 
-Key layout: `uploads/{YYYY}/{MM}/{DD}/{share-token}/{sanitized-filename}`
+All uploads go direct to S3 via presigned URL — Worker never sees file bytes.
+Multipart upload used for files > 90 MB (50 MB parts).
 
-All objects are uploaded directly by the browser via presigned PUT URLs.
-The Worker only:
-1. Generates presigned URLs (`@aws-sdk/s3-request-presigner`).
-2. Validates `HeadObject` after upload to confirm size/etag.
-3. Generates presigned GET URLs for `GET /d/:token` (302 redirect).
+## Limits
 
-The Worker **never** reads or writes file bodies.
-
-## Secrets
-
-S3 credentials live in `.dev.vars` for local dev and as Wrangler secrets
-in production. Never commit them.
-
-```
-S3_ACCESS_KEY_ID
-S3_SECRET_ACCESS_KEY
-```
-
-## Rate Limits
-
-Five `[[ratelimits]]` bindings cover init / complete / download /
-download-lookup / global IP daily. See `wrangler.jsonc` for exact values.
-
-Daily byte/count quota (5 GB / 100 files per IP) is enforced via the
-`upload_quota` D1 table — Cloudflare rate limits alone cannot enforce
-byte budgets.
+- Max file: 5 GB
+- TTL: 5 min to 7 days (default 24h)
+- Per-IP daily: 10 GB / 100 files
+- S3 pool: 100 GB total
+- Rate limits: 30 init / 30 complete / 60 download / 30 lookup per 60s
 
 ## Token Format
 
-Short link = 4 characters from `[0-9A-Z]` (1,679,616 combinations).
-Collisions cause length-extension up to 6 chars. See `lib/share/token.ts`.
+4 chars `[0-9A-Z]` (1,679,616 combos). Collisions extend to 5 then 6 chars.
+See `lib/share/token.ts`.
+
+## Key Files
+
+- `components/uploader/Uploader.tsx` — Upload UI with XHR progress + speed tracking
+- `lib/s3/` — S3 client, presign, multipart, cleanup, policy
+- `lib/share/` — Token gen, password hash, D1 store
+- `lib/admin/auth.ts` — HTTP Basic auth with S3 credentials
+- `custom-worker.ts` — OpenNext wrapper + cron handler
 
 ## Common Commands
 
@@ -76,14 +74,11 @@ npm run preview          # wrangler dev (workerd)
 npm run deploy           # build + deploy
 npm run cf-typegen       # regenerate cloudflare-env.d.ts
 npm run s3:ping          # test S3 endpoint & creds
+npm run db:migrate:remote
 ```
 
 ## Conventions
 
-- All UI strings in English.
-- TypeScript strict mode.
-- Tailwind 4 utility classes; no custom CSS unless necessary.
+- All UI in English, TypeScript strict mode, Tailwind 4.
 - Server-side validation on every API route; never trust the client.
-- All S3 interactions go through `lib/s3/*` — no scattered `S3Client`
-  instantiations.
-- D1 migrations go through `database/schema.sql` + `wrangler d1 execute`.
+- All S3 interactions go through `lib/s3/*` — no scattered `S3Client` instances.
