@@ -33,7 +33,8 @@ export function ResultPanel({
   const [now, setNow] = useState(Date.now());
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const directDownloadUrl = `/api/download/${shareToken}${password ? `?password=${encodeURIComponent(password)}` : ""}`;
+  const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
+  const directDownloadUrl = `${baseUrl}/api/download/${shareToken}${password ? `?password=${encodeURIComponent(password)}` : ""}`;
 
   // Tick once per second to update the expiry countdown
   useEffect(() => {

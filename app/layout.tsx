@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Share — temporary file sharing",
-  description: "Upload a file, get a short-lived shareable download link.",
+  title: "KRSZ Share",
+  description: "KRSZ Share — temporary file sharing",
   robots: {
     index: false,
     follow: false,

@@ -564,6 +564,7 @@ export function Uploader() {
           filename={completed.filename}
           size={completed.size}
           startedAt={completed.startedAt}
+          password={completed.password}
         />
       )}
     </div>
