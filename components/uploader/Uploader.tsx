@@ -438,6 +438,8 @@ export function Uploader() {
         size: file.size,
         startedAt,
       });
+      // Reset active so the dropzone becomes clickable again
+      setActive(null);
     } catch (err) {
       setActive({
         file,
