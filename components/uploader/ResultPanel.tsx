@@ -11,10 +11,11 @@ interface Props {
   filename: string;
   size: number;
   startedAt: number;
+  password: string;
 }
 
 /**
- * M2 success panel — displays the short share link, a QR code, copy button,
+ * Success panel — displays the short share link, a QR code, copy buttons,
  * and a live countdown to expiry.
  */
 export function ResultPanel({
@@ -25,10 +26,14 @@ export function ResultPanel({
   filename,
   size,
   startedAt,
+  password,
 }: Props) {
   const [copied, setCopied] = useState(false);
+  const [copiedDirect, setCopiedDirect] = useState(false);
   const [now, setNow] = useState(Date.now());
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  const directDownloadUrl = `/api/download/${shareToken}${password ? `?password=${encodeURIComponent(password)}` : ""}`;
 
   // Tick once per second to update the expiry countdown
   useEffect(() => {
@@ -48,21 +53,21 @@ export function ResultPanel({
     });
   }, [fullUrl]);
 
-  const onCopy = async () => {
+  const onCopy = async (text: string, setter: (v: boolean) => void) => {
     try {
-      await navigator.clipboard.writeText(fullUrl);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
+      await navigator.clipboard.writeText(text);
+      setter(true);
+      setTimeout(() => setter(false), 1500);
     } catch {
       // Fallback
       const ta = document.createElement("textarea");
-      ta.value = fullUrl;
+      ta.value = text;
       document.body.appendChild(ta);
       ta.select();
       document.execCommand("copy");
       document.body.removeChild(ta);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
+      setter(true);
+      setTimeout(() => setter(false), 1500);
     }
   };
 
@@ -88,12 +93,27 @@ export function ResultPanel({
             </code>
           </div>
 
-          <button
-            onClick={onCopy}
-            className="px-3 py-1.5 text-sm rounded-md bg-blue-600 hover:bg-blue-700 text-white"
-          >
-            {copied ? "Copied ✓" : "Copy link"}
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => onCopy(fullUrl, setCopied)}
+              className="px-3 py-1.5 text-sm rounded-md bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              {copied ? "Copied ✓" : "Copy link"}
+            </button>
+
+            <button
+              onClick={() => onCopy(directDownloadUrl, setCopiedDirect)}
+              className="px-3 py-1.5 text-sm rounded-md border border-blue-600 text-blue-600 hover:bg-blue-50 dark:border-blue-400 dark:text-blue-400 dark:hover:bg-blue-950/30"
+            >
+              {copiedDirect ? "Copied ✓" : "Copy direct link"}
+            </button>
+          </div>
+
+          {password && (
+            <p className="text-xs text-amber-600 dark:text-amber-400">
+              🔒 Direct link includes password via <code>?password=</code>
+            </p>
+          )}
 
           <dl className="text-xs space-y-0.5 text-neutral-600 dark:text-neutral-400 mt-2">
             <div className="flex gap-2">
