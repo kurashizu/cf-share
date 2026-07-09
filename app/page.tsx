@@ -5,7 +5,7 @@ export default function Home() {
     <main className="min-h-screen flex flex-col items-center bg-neutral-50 dark:bg-neutral-950 p-6">
       <div className="w-full max-w-xl text-center mt-12 mb-8">
         <h1 className="text-4xl font-bold tracking-tight text-neutral-900 dark:text-neutral-50">
-          Share
+          KRSZ Share
         </h1>
         <p className="mt-2 text-neutral-600 dark:text-neutral-400">
           Upload a file, get a short-lived shareable download link.
