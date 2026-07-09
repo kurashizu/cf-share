@@ -5,7 +5,14 @@ import { useEffect, useRef, useState } from "react";
 export type UploadState =
   | { kind: "idle" }
   | { kind: "preparing" }
-  | { kind: "uploading"; progress: number; partInfo?: string }
+  | {
+      kind: "uploading";
+      progress: number;
+      loaded: number;
+      total: number;
+      speed: number; // bytes/sec
+      partInfo?: string;
+    }
   | { kind: "success"; etag: string }
   | { kind: "error"; message: string };
 
@@ -16,11 +23,45 @@ interface Props {
   onRetry: () => void;
 }
 
+/** Format bytes to human-readable string. */
+function fmtBytes(bytes: number): string {
+  if (bytes === 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB"];
+  const i = Math.min(
+    Math.floor(Math.log(bytes) / Math.log(1024)),
+    units.length - 1,
+  );
+  return (bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0) + " " + units[i];
+}
+
+/** Format speed (bytes/sec) to a human-readable string. */
+function fmtSpeed(bytesPerSec: number): string {
+  if (bytesPerSec <= 0) return "";
+  if (bytesPerSec >= 1_000_000)
+    return (bytesPerSec / 1_000_000).toFixed(1) + " MB/s";
+  if (bytesPerSec >= 1_000) return (bytesPerSec / 1_000).toFixed(1) + " KB/s";
+  return Math.round(bytesPerSec) + " B/s";
+}
+
+/** Estimate remaining time in seconds given progress and speed. */
+function estimateRemaining(
+  progress: number,
+  speed: number,
+  total: number,
+  loaded: number,
+): string {
+  if (speed <= 0 || progress >= 1) return "";
+  const remaining = total - loaded;
+  const sec = remaining / speed;
+  if (sec < 5) return "";
+  if (sec < 60) return ` · ${Math.round(sec)}s remaining`;
+  if (sec < 3600)
+    return ` · ${Math.floor(sec / 60)}m ${Math.round(sec % 60)}s remaining`;
+  return ` · ${Math.floor(sec / 3600)}h ${Math.floor((sec % 3600) / 60)}m remaining`;
+}
+
 /**
- * Render a single file row with progress + cancel/retry buttons.
- *
- * Upload is performed by the parent (Uploader) using an XHR so we can track
- * upload progress reliably. This component is purely visual.
+ * Render a single file row with progress, speed, ETA + cancel/retry buttons.
  */
 export function FileItem({ file, state, onCancel, onRetry }: Props) {
   const xhrRef = useRef<XMLHttpRequest | null>(null);
@@ -61,19 +102,33 @@ export function FileItem({ file, state, onCancel, onRetry }: Props) {
                   ? `${Math.round(state.progress * 100)}%`
                   : state.kind === "success"
                     ? "100%"
-                    : state.kind === "preparing"
-                      ? "0%"
-                      : "0%",
+                    : "0%",
             }}
           />
         </div>
 
-        <div className="mt-1 text-xs text-neutral-500 dark:text-neutral-400 h-4">
+        <div className="mt-1 text-xs text-neutral-500 dark:text-neutral-400 h-4 leading-tight">
           {state.kind === "idle" && "Waiting..."}
           {state.kind === "preparing" && "Requesting upload URL..."}
           {state.kind === "uploading" && (
             <>
-              {Math.round(state.progress * 100)}%
+              <span className="tabular-nums">
+                {Math.round(state.progress * 100)}%
+              </span>
+              <span className="ml-1 text-neutral-400 tabular-nums">
+                {fmtBytes(state.loaded)} / {fmtBytes(state.total)}
+              </span>
+              {state.speed > 0 && (
+                <span className="ml-1 text-neutral-400 tabular-nums">
+                  · {fmtSpeed(state.speed)}
+                  {estimateRemaining(
+                    state.progress,
+                    state.speed,
+                    state.total,
+                    state.loaded,
+                  )}
+                </span>
+              )}
               {state.partInfo && (
                 <span className="ml-1 text-neutral-400">{state.partInfo}</span>
               )}
