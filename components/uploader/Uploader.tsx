@@ -16,6 +16,7 @@ interface CompletedUpload {
   filename: string;
   size: number;
   startedAt: number;
+  password: string;
 }
 
 interface SpeedSample {
@@ -437,6 +438,7 @@ export function Uploader() {
         filename: file.name,
         size: file.size,
         startedAt,
+        password: currentPassword,
       });
       // Reset active so the dropzone becomes clickable again
       setActive(null);
