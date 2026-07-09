@@ -88,11 +88,13 @@ export function DownloadPage({ token }: Props) {
         body: JSON.stringify({ password }),
       });
       if (r.status === 401) {
+        setVerifying(false);
         setStatus("wrong-password");
         setErrorMsg("Invalid password. Please try again.");
         return;
       }
       if (r.status === 404) {
+        setVerifying(false);
         setStatus("missing");
         return;
       }
