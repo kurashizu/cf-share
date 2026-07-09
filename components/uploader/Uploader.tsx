@@ -511,7 +511,7 @@ export function Uploader() {
         </label>
         <input
           id="password-input"
-          type="text"
+          type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="Leave empty for no password"
