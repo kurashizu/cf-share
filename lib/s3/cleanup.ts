@@ -4,6 +4,7 @@ import {
   DeleteObjectCommand,
   ListMultipartUploadsCommand,
   ListObjectsV2Command,
+  ListObjectsV2CommandOutput,
   AbortMultipartUploadCommand,
 } from "@aws-sdk/client-s3";
 import { createS3Client, bucketName } from "./client";
@@ -20,9 +21,15 @@ export interface CleanupResult {
   /** Orphaned in-progress multipart uploads aborted. */
   multipartAborted: number;
   /** Orphaned tmp-* objects (PUT but never completed) deleted from S3. */
-  orphanObjectsDeleted: number;
-  durationMs: number;
-}
+    orphanObjectsDeleted: number;
+    /** Orphaned tmp-* objects scanned during cleanup pass (across all pages). */
+      orphanObjectsScanned: number;
+      /** Tmp-* objects skipped due to freshness guard (in-flight upload). */
+      orphanObjectsSkipped: number;
+      /** Audit log rows pruned (older than keepDays). */
+      auditPrunedRows: number;
+      durationMs: number;
+    }
 
 // ── S3 helpers ─────────────────────────────────────────────────────────────
 
@@ -254,55 +261,72 @@ export async function cleanupOrphanedMultipartUploads(
  * corresponding D1 share row. These are files that were PUT to the presigned
  * URL but the user never called `/api/upload/complete`.
  *
- * We limit the listing to `maxKeys` and `maxDelete` to stay within the cron
- * time budget.
+ * Pagination: walks the full `prefix` (handling ContinuationToken) instead of
+ * stopping at the first 200 objects, so a busy bucket doesn't accumulate
+ * orphaned tmp- objects we never see.
+ *
+ * Freshness guard: objects newer than `minAgeMs` are skipped, so an in-flight
+ * upload (init just happened, parts are still going up) isn't deleted out
+ * from under the user mid-stream. Must be longer than the longest expected
+ * part time and comfortably below the multipart upload TTL.
  */
 export async function cleanupOrphanedTempObjects(
   env: CloudflareEnv,
   bucket: string,
   prefix: string,
-  maxKeys = 200,
-): Promise<{ deleted: number; errors: number }> {
+  minAgeMs: number,
+): Promise<{ deleted: number; errors: number; scanned: number; skipped: number }> {
   const client = createS3Client(env);
   let deleted = 0;
   let errors = 0;
+  let scanned = 0;
+  let skipped = 0;
 
   try {
-    // List all objects under the uploads prefix. We restrict with `tmp-` in
-    // the prefix by scanning down to date-based directories — the tmp- token
-    // is at the 4th path component, so we pass prefix = "uploads/" and
-    // filter client-side.
-    //
-    // A more precise approach: list "uploads/" and check keys containing
-    // "/tmp-". For a busy bucket this could return many keys, so we limit
-    // to `maxKeys`.
-    const listResp = await client.send(
-      new ListObjectsV2Command({
-        Bucket: bucket,
-        Prefix: prefix,
-        MaxKeys: maxKeys,
-      }),
-    );
+    let continuationToken: string | undefined = undefined;
+    const cutoff = Date.now() - minAgeMs;
 
-    const objects = listResp.Contents ?? [];
-    for (const obj of objects) {
-      const key = obj.Key ?? "";
-      if (!key.includes("/tmp-")) continue;
+    // Walk the entire prefix. Each page is up to 1000 keys (S3 hard limit).
+        do {
+          const listResp: ListObjectsV2CommandOutput = await client.send(
+            new ListObjectsV2Command({
+              Bucket: bucket,
+              Prefix: prefix,
+              MaxKeys: 1000,
+              ContinuationToken: continuationToken,
+            }),
+          );
 
-      // If no share (active or expired) references this key, it's orphaned.
-      if (!(await anyShareHasKey(env, key))) {
-        const result = await deleteS3Object(env, bucket, key);
-        if (result.ok) deleted++;
-        else errors++;
+      const objects = listResp.Contents ?? [];
+      for (const obj of objects) {
+        const key = obj.Key ?? "";
+        if (!key.includes("/tmp-")) continue;
+        scanned++;
+
+        // Freshness guard: skip objects newer than minAgeMs.
+        const lastModified = obj.LastModified?.getTime() ?? 0;
+        if (lastModified > cutoff) {
+          skipped++;
+          continue;
+        }
+
+        // If no share (active or expired) references this key, it's orphaned.
+        if (!(await anyShareHasKey(env, key))) {
+          const result = await deleteS3Object(env, bucket, key);
+          if (result.ok) deleted++;
+          else errors++;
+        }
       }
-    }
+
+      continuationToken = listResp.NextContinuationToken;
+    } while (continuationToken);
   } catch (err) {
     console.warn("[cleanup] ListObjectsV2 failed (non-fatal)", {
       err: String(err),
     });
   }
 
-  return { deleted, errors };
+  return { deleted, errors, scanned, skipped };
 }
 
 // ── Quota pruning ───────────────────────────────────────────────────────────
@@ -320,6 +344,24 @@ export async function pruneOldQuota(
   return (r.meta as { changes?: number } | undefined)?.changes ?? 0;
 }
 
+/**
+ * Prune audit_log rows older than `keepDays` days. Without this, the table
+ * grows unbounded (every init/complete/download/etc. logs a row) and D1
+ * eventually gets slow. Default 30 days is plenty for incident response.
+ *
+ * Uses `ts < cutoff` where ts is a Unix-ms integer, so the cutoff is in ms.
+ */
+export async function pruneOldAuditLog(
+  env: CloudflareEnv,
+  keepDays: number,
+): Promise<number> {
+  const cutoffMs = Date.now() - keepDays * 24 * 60 * 60 * 1000;
+  const r = await env.DB.prepare(`DELETE FROM audit_log WHERE ts < ?1`)
+    .bind(cutoffMs)
+    .run();
+  return (r.meta as { changes?: number } | undefined)?.changes ?? 0;
+}
+
 // ── Combined runner ─────────────────────────────────────────────────────────
 
 /**
@@ -330,29 +372,41 @@ export async function runCleanup(env: CloudflareEnv): Promise<CleanupResult> {
   const start = Date.now();
   const bucket = bucketName(env);
 
-  const [shares, multipartResult, orphanResult, quotaPrunedRows] =
-    await Promise.all([
-      runExpiredShareCleanup(env, {
-        batchSize: Number(env.CLEANUP_BATCH_SIZE ?? 500),
-        maxBatchMs: Number(env.CLEANUP_MAX_BATCH_MS ?? 25_000),
-      }),
-      cleanupOrphanedMultipartUploads(
-        env,
-        bucket,
-        30 * 60 * 1000, // abort multipart uploads initiated >30 min ago
-        100,
-      ),
-      cleanupOrphanedTempObjects(env, bucket, "uploads/", 200),
-      pruneOldQuota(env, Number(env.CLEANUP_QUOTA_KEEP_DAYS ?? 30)),
-    ]);
+  const [shares, multipartResult, orphanResult, quotaPrunedRows, auditPrunedRows] =
+      await Promise.all([
+        runExpiredShareCleanup(env, {
+          batchSize: Number(env.CLEANUP_BATCH_SIZE ?? 500),
+          maxBatchMs: Number(env.CLEANUP_MAX_BATCH_MS ?? 25_000),
+        }),
+        cleanupOrphanedMultipartUploads(
+          env,
+          bucket,
+          90 * 60 * 1000, // abort multipart uploads initiated >90 min ago
+          100,
+        ),
+        cleanupOrphanedTempObjects(
+          env,
+          bucket,
+          "uploads/",
+          // 30 min: comfortably above any reasonable per-part upload time and
+          // well below the 60-min UPLOAD_URL_TTL. An init that just happened
+          // and is still streaming parts will be skipped.
+          30 * 60 * 1000,
+        ),
+        pruneOldQuota(env, Number(env.CLEANUP_QUOTA_KEEP_DAYS ?? 30)),
+        pruneOldAuditLog(env, Number(env.CLEANUP_AUDIT_KEEP_DAYS ?? 30)),
+      ]);
 
-  return {
-    ...shares,
-    quotaPrunedRows,
-    multipartAborted: multipartResult.aborted,
-    orphanObjectsDeleted: orphanResult.deleted,
-    durationMs: Date.now() - start,
-  };
+    return {
+      ...shares,
+      quotaPrunedRows,
+      multipartAborted: multipartResult.aborted,
+      orphanObjectsDeleted: orphanResult.deleted,
+      orphanObjectsScanned: orphanResult.scanned,
+      orphanObjectsSkipped: orphanResult.skipped,
+      auditPrunedRows,
+      durationMs: Date.now() - start,
+    };
 }
 
 export { bucketName };

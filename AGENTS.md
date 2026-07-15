@@ -19,7 +19,8 @@ Live at https://share.022025.xyz
 | GET | `/d/:token` | Download page (HTML) |
 | GET | `/api/download/:token` | 302 to presigned S3 URL |
 | POST | `/api/download/:token` | Password verification |
-| POST | `/api/upload/init` | Reserve presigned PUT URL |
+| POST | `/api/upload/init` | Reserve presigned PUT URL (admin auth skips all quotas) |
+| POST | `/api/upload/resume` | Re-sign missing parts for interrupted multipart upload |
 | POST | `/api/upload/complete` | Mint share token |
 | GET | `/api/health` | Health check |
 | GET/POST | `/api/cron/cleanup` | Manual cleanup trigger |
@@ -47,11 +48,13 @@ Multipart upload used for files > 90 MB (50 MB parts).
 
 ## Limits
 
-- Max file: 10 GB
+- Max file: 5 GB (anon), 100 GB (admin via Basic auth)
 - TTL: 5 min to 7 days (default 24h)
-- Per-IP daily: 10 GB / 100 files
-- S3 pool: 100 GB total
-- Rate limits: 30 init / 30 complete / 60 download / 30 lookup per 60s
+- Per-IP daily: 20 GB / 100 files (admin bypasses)
+- S3 pool: 100 GB total (admin bypasses)
+- Rate limits: 30 init / 30 complete / 60 download / 30 lookup per 60s (admin bypasses)
+- Presigned PUT URL TTL: 1 hour (multipart uploads for large files)
+- Resume: client tracks parts in localStorage, calls `/api/upload/resume` to re-sign missing parts
 
 ## Token Format
 

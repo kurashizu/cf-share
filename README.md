@@ -13,11 +13,11 @@ never proxies file bodies.
 
 | Limit | Value |
 |---|---|
-| Max file size | 10 GB |
+| Max file size | 5 GB (anon), 100 GB (admin) |
 | Min share TTL | 5 minutes |
 | Max share TTL | 7 days |
 | Default TTL | 24 hours |
-| Per-IP daily upload | 10 GB total, 100 files |
+| Per-IP daily upload | 20 GB total, 100 files |
 | S3 pool total | 100 GB (across all active shares) |
 | Token format | 4 alphanumeric chars (`[0-9A-Z]{4}`, extended to 5–6 on collision) |
 

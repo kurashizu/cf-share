@@ -4,6 +4,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useDropzone } from "react-dropzone";
 import { FileItem, type UploadState } from "./FileItem";
 import { ResultPanel } from "./ResultPanel";
+import {
+  fileFingerprint,
+  loadPersistedUpload,
+  savePersistedUpload,
+  clearPersistedUpload,
+  gcPersistedUploads,
+  type PersistedPart,
+} from "./lib/resume";
 
 /** Number of samples to keep for speed calculation (rolling window). */
 const SPEED_SAMPLES = 10;
@@ -80,6 +88,13 @@ export function Uploader() {
   const [password, setPassword] = useState("");
   const cancelledRef = useRef(false);
 
+  // GC stale persisted uploads on mount (e.g. abandoned uploads from
+  // previous sessions). Anything older than 6h is definitely dead since
+  // the multipart TTL is 1h.
+  useEffect(() => {
+    gcPersistedUploads(6 * 60 * 60 * 1000);
+  }, []);
+
   // Warn user before closing tab during an active upload
   useEffect(() => {
     if (
@@ -104,7 +119,7 @@ export function Uploader() {
       const currentTtl = ttl;
       const currentPassword = password;
 
-      // 1. init
+      // 1. Compute fingerprint & look up any persisted upload for this file
       setActive({
         file,
         state: { kind: "preparing" },
@@ -114,24 +129,52 @@ export function Uploader() {
         speedSamples: [],
       });
 
-      let init: InitResponse;
+      let fp: string;
       try {
-        const resp = await fetch("/api/upload/init", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            filename: file.name,
-            size: file.size,
-            contentType: file.type || "application/octet-stream",
-            ttl: currentTtl,
-            password: currentPassword || undefined,
-          }),
-        });
-        if (!resp.ok) {
-          const txt = await resp.text();
-          throw new Error(`init ${resp.status}: ${txt}`);
+        fp = await fileFingerprint(file);
+      } catch {
+        fp = `anon-${Date.now()}-${Math.random()}`;
+      }
+      const persisted = loadPersistedUpload(fp);
+
+      // 2. init (or resume) — fetch presigned URLs from the server
+      let init: InitResponse;
+      let resuming = false;
+      try {
+        if (
+                  persisted &&
+                  persisted.size === file.size &&
+                  persisted.s3UploadId &&
+                  persisted.key
+                ) {
+                  // Try to resume the in-progress upload.
+                  const resp = await fetch("/api/upload/resume", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      s3UploadId: persisted.s3UploadId,
+                      key: persisted.key,
+                      size: persisted.size,
+                      uploadedPartNumbers: persisted.completedParts.map(
+                        (p) => p.partNumber,
+                      ),
+                    }),
+                  });
+          if (resp.ok) {
+                      init = (await resp.json()) as MultipartInitResponse;
+                      resuming = true;
+                    } else if (resp.status === 410) {
+            // Multipart expired or aborted by cleanup. Drop the stale state
+            // and fall through to a fresh init.
+            clearPersistedUpload(fp);
+            init = await freshInit(file, currentTtl, currentPassword);
+          } else {
+            const txt = await resp.text();
+            throw new Error(`resume ${resp.status}: ${txt}`);
+          }
+        } else {
+          init = await freshInit(file, currentTtl, currentPassword);
         }
-        init = (await resp.json()) as InitResponse;
       } catch (err) {
         setActive({
           file,
@@ -154,14 +197,17 @@ export function Uploader() {
       );
 
       if (init.mode === "multipart") {
-        await doMultipartUpload(
-          file,
-          init,
-          startedAt,
-          currentTtl,
-          currentPassword,
-        );
-      } else {
+              const alreadyDone = resuming && persisted ? persisted.completedParts : [];
+              await doMultipartUpload(
+                file,
+                init,
+                startedAt,
+                currentTtl,
+                currentPassword,
+                fp,
+                alreadyDone,
+              );
+            } else {
         await doSingleUpload(
           file,
           init,
@@ -304,32 +350,89 @@ export function Uploader() {
 
   /** Multipart upload (files > ~90 MB, split into 50 MB parts). */
   async function doMultipartUpload(
-    file: File,
-    init: MultipartInitResponse,
-    startedAt: number,
-    currentTtl: number,
-    currentPassword: string,
-  ) {
+      file: File,
+      init: MultipartInitResponse,
+      startedAt: number,
+      currentTtl: number,
+      currentPassword: string,
+      fingerprint: string,
+      alreadyDone: PersistedPart[],
+    ) {
     const parts = init.parts;
-    const completedParts: { partNumber: number; etag: string }[] = [];
+    const partSize = init.partSize;
+    const completedParts: PersistedPart[] = [...alreadyDone];
+    const completedSet = new Set(alreadyDone.map((p) => p.partNumber));
+
+    // Bytes we've already "got" from S3's perspective (resumed parts count).
     let totalLoaded = 0;
+    for (const p of alreadyDone) {
+      const start = (p.partNumber - 1) * partSize;
+      const end = Math.min(start + partSize, file.size);
+      totalLoaded += end - start;
+    }
     const totalSize = file.size;
 
-    // Upload each part sequentially, accumulating progress
-    for (let i = 0; i < parts.length; i++) {
+    setActive({
+      file,
+      state: {
+        kind: "uploading",
+        progress: totalSize > 0 ? totalLoaded / totalSize : 0,
+        loaded: totalLoaded,
+        total: totalSize,
+        speed: 0,
+        partInfo: `Part ${completedParts.length}/${parts.length + completedParts.length}${alreadyDone.length > 0 ? ` (resumed ${alreadyDone.length})` : ""}`,
+      },
+      xhr: null,
+      uploadId: init.uploadId,
+      startedAt,
+      speedSamples: [],
+    });
+
+    // Build the plan: walk every part number from 1..N and either skip
+    // (already on S3) or PUT (using the presigned URL from the server).
+    const totalParts = parts.length + completedParts.length;
+    for (let i = 0; i < totalParts; i++) {
       if (cancelledRef.current) return;
 
-      const part = parts[i];
-      const start = (part.partNumber - 1) * init.partSize;
-      const end = Math.min(start + part.size, file.size);
+      const partNumber = i + 1;
+
+      if (completedSet.has(partNumber)) {
+        // Already on S3 — just skip. We don't get an xhr.
+        continue;
+      }
+
+      // Find the presigned URL for this part. The server returns parts
+      // in ascending partNumber order for fresh inits, but for resume the
+      // missing parts may be sparse — so look up by partNumber.
+      const presign = parts.find((p) => p.partNumber === partNumber);
+      if (!presign) {
+        setActive({
+          file,
+          state: {
+            kind: "error",
+            message: `No presigned URL for part ${partNumber}`,
+          },
+          xhr: null,
+          uploadId: null,
+          startedAt,
+          speedSamples: [],
+        });
+        return;
+      }
+
+      const start = (partNumber - 1) * partSize;
+      const end = Math.min(start + presign.size, file.size);
       const blob = file.slice(start, end);
 
       const xhr = new XMLHttpRequest();
+      // Track the active xhr so cancel() can abort it.
+      setActive((prev) =>
+        prev && prev.file === file ? { ...prev, xhr } : prev,
+      );
 
       const uploaded = await new Promise<{ etag: string }>(
         (resolve, reject) => {
-          // Must open + send INSIDE the executor so the promise resolves on load
-          xhr.open("PUT", part.url);
+          xhr.open("PUT", presign.url);
           // Multipart presigned URLs already have the signature baked in;
           // no additional headers needed.
 
@@ -340,7 +443,7 @@ export function Uploader() {
                 file,
                 partProgress,
                 totalSize,
-                `Part ${part.partNumber}/${parts.length}`,
+                `Part ${partNumber}/${totalParts}${alreadyDone.length > 0 ? ` (resumed ${alreadyDone.length})` : ""}`,
               );
             }
           });
@@ -354,13 +457,13 @@ export function Uploader() {
             } else {
               reject(
                 new Error(
-                  `Part ${part.partNumber} PUT ${xhr.status}: ${xhr.responseText.slice(0, 200)}`,
+                  `Part ${partNumber} PUT ${xhr.status}: ${xhr.responseText.slice(0, 200)}`,
                 ),
               );
             }
           });
           xhr.addEventListener("error", () =>
-            reject(new Error(`Part ${part.partNumber} network error`)),
+            reject(new Error(`Part ${partNumber} network error`)),
           );
           xhr.addEventListener("abort", () => reject(new Error("Cancelled")));
 
@@ -368,8 +471,18 @@ export function Uploader() {
         },
       );
 
-      totalLoaded += part.size;
-      completedParts.push({ partNumber: part.partNumber, etag: uploaded.etag });
+      totalLoaded += presign.size;
+      completedParts.push({ partNumber, etag: uploaded.etag });
+      completedSet.add(partNumber);
+
+      // Persist progress so a refresh can resume from here.
+      savePersistedUpload(fingerprint, {
+        s3UploadId: init.s3UploadId,
+        key: init.key,
+        size: file.size,
+        completedParts,
+        savedAt: Date.now(),
+      });
     }
 
     if (cancelledRef.current) return;
@@ -386,6 +499,7 @@ export function Uploader() {
       startedAt,
       currentTtl,
       currentPassword,
+      fingerprint,
     );
   }
 
@@ -396,6 +510,7 @@ export function Uploader() {
     startedAt: number,
     currentTtl: number,
     currentPassword: string,
+    fingerprint?: string,
   ) {
     if (cancelledRef.current) return;
 
@@ -430,6 +545,10 @@ export function Uploader() {
         fullUrl: string;
         expiresAt: number;
       };
+
+      // Clear resume state — the upload is done.
+      if (fingerprint) clearPersistedUpload(fingerprint);
+
       setCompleted({
         shareToken: data.shareToken,
         shareUrl: data.shareUrl,
@@ -569,4 +688,28 @@ export function Uploader() {
       )}
     </div>
   );
+}
+
+/** Fetch a fresh multipart-or-single init. Throws on non-2xx. */
+async function freshInit(
+  file: File,
+  ttl: number,
+  password: string,
+): Promise<SingleInitResponse | MultipartInitResponse> {
+  const resp = await fetch("/api/upload/init", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      filename: file.name,
+      size: file.size,
+      contentType: file.type || "application/octet-stream",
+      ttl,
+      password: password || undefined,
+    }),
+  });
+  if (!resp.ok) {
+    const txt = await resp.text();
+    throw new Error(`init ${resp.status}: ${txt}`);
+  }
+  return (await resp.json()) as SingleInitResponse | MultipartInitResponse;
 }

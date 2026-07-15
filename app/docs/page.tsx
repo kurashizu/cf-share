@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "API — Share",
-  description: "cf-share anonymous file sharing API docs.",
+  description: "cf-share file sharing API docs.",
   robots: { index: false, follow: false },
 };
 
@@ -48,141 +48,147 @@ export default function DocsPage() {
           >
             share.022025.xyz
           </a>
-          {" · "}Anonymous file sharing. Upload via presigned S3 URL, get a
-          4-char share link.
+          {" · "}Upload a file via presigned S3 URL, get a short-lived 4-char
+          share link. Admin uploads bypass all quotas.
         </p>
 
+        {/* ── Anonymous Upload Flow ──────────────────────────────────────── */}
         <h2
           className="text-2xl font-bold mt-10 mb-4 text-neutral-900 dark:text-neutral-50"
-          id="endpoints"
+          id="upload"
         >
-          Endpoints
+          Upload Flow
         </h2>
 
         <h3 className="text-xl font-semibold mt-6 mb-3 text-neutral-800 dark:text-neutral-100">
-          <Code>POST /api/upload/init</Code> — Reserve upload URL
+          <Code>POST /api/upload/init</Code>
         </h3>
+        <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-3">
+          Reserves an S3 presigned URL. Returns <Code>mode</Code>{" "}
+          (<Code>"single"</Code> ≤ 90 MB, <Code>"multipart"</Code> with{" "}
+          <Code>parts</Code> array above). PUT URLs valid for 1 hour.
+        </p>
         <Table>
           <thead>
             <tr className="border-b border-neutral-300 dark:border-neutral-700 text-left">
               <th className="py-2 pr-4 font-medium">Field</th>
               <th className="py-2 pr-4 font-medium">Type</th>
-              <th className="py-2 font-medium">Description</th>
+              <th className="py-2 font-medium">Note</th>
             </tr>
           </thead>
           <tbody>
             <tr className="border-b border-neutral-200 dark:border-neutral-800">
-              <td className="py-2 pr-4">
-                <Code>filename</Code>
-              </td>
+              <td className="py-2 pr-4"><Code>filename</Code></td>
               <td className="py-2 pr-4">string</td>
-              <td className="py-2">Required. Max 500 chars.</td>
+              <td className="py-2">Required, ≤ 500 chars</td>
             </tr>
             <tr className="border-b border-neutral-200 dark:border-neutral-800">
-              <td className="py-2 pr-4">
-                <Code>size</Code>
-              </td>
-              <td className="py-2 pr-4">integer</td>
-              <td className="py-2">Required. 1 – 5,368,709,120 bytes.</td>
-            </tr>
-            <tr className="border-b border-neutral-200 dark:border-neutral-800">
-              <td className="py-2 pr-4">
-                <Code>contentType</Code>
-              </td>
-              <td className="py-2 pr-4">string</td>
-              <td className="py-2">Required. MIME type.</td>
-            </tr>
-            <tr className="border-b border-neutral-200 dark:border-neutral-800">
-              <td className="py-2 pr-4">
-                <Code>ttl</Code>
-              </td>
+              <td className="py-2 pr-4"><Code>size</Code></td>
               <td className="py-2 pr-4">integer</td>
               <td className="py-2">
-                Optional. 300–604800s. Default: 86400 (24h).
+                1 – <strong>5 GB</strong> anon, <strong>100 GB</strong> admin
               </td>
             </tr>
             <tr className="border-b border-neutral-200 dark:border-neutral-800">
-              <td className="py-2 pr-4">
-                <Code>password</Code>
-              </td>
+              <td className="py-2 pr-4"><Code>contentType</Code></td>
               <td className="py-2 pr-4">string</td>
-              <td className="py-2">
-                Optional. Password-protect the share (1-256 chars).
-              </td>
+              <td className="py-2">MIME type</td>
+            </tr>
+            <tr className="border-b border-neutral-200 dark:border-neutral-800">
+              <td className="py-2 pr-4"><Code>ttl</Code></td>
+              <td className="py-2 pr-4">integer</td>
+              <td className="py-2">300–604800s, default 86400</td>
+            </tr>
+            <tr className="border-b border-neutral-200 dark:border-neutral-800">
+              <td className="py-2 pr-4"><Code>password</Code></td>
+              <td className="py-2 pr-4">string</td>
+              <td className="py-2">Optional, 1–256 chars</td>
             </tr>
           </tbody>
         </Table>
-        <p className="mt-2 text-sm text-neutral-500">
-          Returns <Code>uploadId</Code>, <Code>key</Code>, <Code>url</Code>{" "}
-          (presigned PUT, 10min valid), and <Code>mode</Code> (
-          <Code>"single"</Code> for small files, <Code>"multipart"</Code> with{" "}
-          <Code>parts</Code> array for large files).
-        </p>
 
         <h3 className="text-xl font-semibold mt-6 mb-3 text-neutral-800 dark:text-neutral-100">
           <Code>PUT {"{url}"}</Code> — Upload to S3
         </h3>
         <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-2">
-          Send file body bytes directly to S3 with the presigned URL. For single
-          mode, set <Code>Content-Type</Code> from init response. Multipart
-          parts need no headers. Capture the <Code>ETag</Code> response header.
+          Send file bytes directly to S3 via presigned URL. Capture the{" "}
+          <Code>ETag</Code> header from the response for{" "}
+          <Code>/api/upload/complete</Code>.
         </p>
 
         <h3 className="text-xl font-semibold mt-6 mb-3 text-neutral-800 dark:text-neutral-100">
-          <Code>POST /api/upload/complete</Code> — Mint share token
+          <Code>POST /api/upload/resume</Code> — Resume multipart
         </h3>
+        <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-2">
+          If a multipart upload is interrupted (page refresh, network failure),
+          call with <Code>s3UploadId</Code>, <Code>key</Code>,{" "}
+          <Code>size</Code>, and <Code>uploadedPartNumbers: number[]</Code> to
+          get fresh presigned URLs for the missing parts only. Client tracks
+          uploaded parts in localStorage.
+        </p>
+
+        <h3 className="text-xl font-semibold mt-6 mb-3 text-neutral-800 dark:text-neutral-100">
+          <Code>POST /api/upload/complete</Code>
+        </h3>
+        <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-3">
+          Finalizes the upload and mints a share token. Returns{" "}
+          <Code>{"{shareToken, shareUrl, fullUrl, expiresAt}"}</Code>.
+        </p>
         <Table>
           <thead>
             <tr className="border-b border-neutral-300 dark:border-neutral-700 text-left">
               <th className="py-2 pr-4 font-medium">Field</th>
-              <th className="py-2 pr-4 font-medium">Description</th>
+              <th className="py-2 font-medium">Note</th>
             </tr>
           </thead>
           <tbody>
             <tr className="border-b border-neutral-200 dark:border-neutral-800">
-              <td className="py-2 pr-4">
-                <Code>
-                  uploadId, key, filename, size, contentType, ttl, password
-                </Code>
-              </td>
-              <td className="py-2">Same as init.</td>
+              <td className="py-2 pr-4"><Code>etag</Code></td>
+              <td className="py-2">Required for single mode (from PUT response)</td>
             </tr>
             <tr className="border-b border-neutral-200 dark:border-neutral-800">
               <td className="py-2 pr-4">
-                <Code>etag</Code>
+                <Code>mode="multipart"</Code>, <Code>s3UploadId</Code>,{" "}
+                <Code>parts</Code>
               </td>
               <td className="py-2">
-                Required for single mode. From S3 PUT response.
+                Required for multipart mode. <Code>parts</Code>:{" "}
+                <Code>[{"{partNumber, etag}"}]</Code>
               </td>
             </tr>
-            <tr className="border-b border-neutral-200 dark:border-neutral-800">
-              <td className="py-2 pr-4">
-                <Code>mode</Code> = <Code>"multipart"</Code>,{" "}
-                <Code>s3UploadId</Code>, <Code>parts</Code>
-              </td>
+            <tr>
+              <td className="py-2 pr-4">Other fields</td>
               <td className="py-2">
-                Required for multipart mode. Array of{" "}
-                <Code>{"{partNumber, etag}"}</Code>.
+                Same as init (<Code>uploadId</Code>, <Code>key</Code>,{" "}
+                <Code>filename</Code>, <Code>size</Code>, etc.)
               </td>
             </tr>
           </tbody>
         </Table>
-        <p className="mt-2 text-sm text-neutral-500">
-          Returns <Code>{"{shareToken, shareUrl, fullUrl, expiresAt}"}</Code>.
-          Token is 4 chars <Code>[0-9A-Z]</Code> (extends to 5–6 on collision).
+
+        {/* ── Download ───────────────────────────────────────────────────── */}
+        <h2
+          className="text-2xl font-bold mt-10 mb-4 text-neutral-900 dark:text-neutral-50"
+          id="download"
+        >
+          Download
+        </h2>
+
+        <h3 className="text-xl font-semibold mt-6 mb-3 text-neutral-800 dark:text-neutral-100">
+          <Code>GET /d/:token</Code> — Download page (HTML)
+        </h3>
+        <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-2">
+          Renders a human-friendly download page with filename, size, and
+          expiry countdown. Password-protected shares show a prompt.
         </p>
 
         <h3 className="text-xl font-semibold mt-6 mb-3 text-neutral-800 dark:text-neutral-100">
-          <Code>GET /api/download/:token</Code> — Download
+          <Code>GET /api/download/:token</Code> — Presigned S3 URL
         </h3>
         <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-2">
-          Without query: 302 redirect to presigned S3 GET URL (valid 300s).
-          <br />
-          <Code>?info=1</Code> — Returns JSON metadata (<Code>filename</Code>,{" "}
-          <Code>size_bytes</Code>, <Code>expires_at</Code>,{" "}
-          <Code>has_password</Code>).
-          <br />
-          <Code>?password=X</Code> — Provide password for protected shares.
+          302 redirect to a presigned S3 GET URL (valid 300s). Append{" "}
+          <Code>?info=1</Code> for JSON metadata or <Code>?password=X</Code>{" "}
+          for protected shares.
         </p>
 
         <h3 className="text-xl font-semibold mt-6 mb-3 text-neutral-800 dark:text-neutral-100">
@@ -190,28 +196,34 @@ export default function DocsPage() {
         </h3>
         <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-2">
           Body: <Code>{"{password: string}"}</Code>. Returns{" "}
-          <Code>{"{verified: true, downloadUrl}"}</Code> on success, 401 on
-          wrong password.
+          <Code>{"{verified: true, downloadUrl}"}</Code>.
         </p>
 
-        <h3 className="text-xl font-semibold mt-6 mb-3 text-neutral-800 dark:text-neutral-100">
-          <Code>GET /api/health</Code> — Health check
-        </h3>
-        <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-2">
-          Returns <Code>{"{status, db, s3, limits}"}</Code>.
+        {/* ── Admin ──────────────────────────────────────────────────────── */}
+        <Hr />
+        <h2
+          className="text-2xl font-bold mt-10 mb-4 text-neutral-900 dark:text-neutral-50"
+          id="admin"
+        >
+          Admin
+        </h2>
+        <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
+          All admin endpoints require <Code>Authorization: Basic …</Code> using
+          the S3 access credentials. Admin uploads bypass{" "}
+          <em>all</em> per-IP quotas and rate limits; the per-file cap is{" "}
+          <strong>100 GB</strong> instead of 5 GB.
         </p>
-
-        <h3 className="text-xl font-semibold mt-6 mb-3 text-neutral-800 dark:text-neutral-100">
-          Admin endpoints (HTTP Basic Auth, S3 credentials)
-        </h3>
         <ul className="list-disc pl-6 text-sm text-neutral-600 dark:text-neutral-400 space-y-1 mb-4">
+          <li>
+            <Code>POST /api/upload/init</Code> + <Code>…/complete</Code> —
+            Upload with Basic auth for admin privileges
+          </li>
           <li>
             <Code>GET /api/admin/shares?page=&amp;q=&amp;all=1</Code> — List
             shares with stats
           </li>
           <li>
-            <Code>GET /api/admin/audit?apage=&amp;aq=&amp;aaction=</Code> —
-            Audit log
+            <Code>GET /api/admin/audit?page=&amp;action=</Code> — Audit log
           </li>
           <li>
             <Code>DELETE /api/admin/delete?token=X</Code> — Delete a share
@@ -221,17 +233,8 @@ export default function DocsPage() {
           </li>
         </ul>
 
-        <h3 className="text-xl font-semibold mt-6 mb-3 text-neutral-800 dark:text-neutral-100">
-          <Code>GET /d/:token</Code> — Download page (HTML)
-        </h3>
-        <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-2">
-          Renders a human-friendly download page with filename, size, expiry
-          countdown, and download button. Password-protected shares show a
-          password prompt.
-        </p>
-
+        {/* ── Limits ─────────────────────────────────────────────────────── */}
         <Hr />
-
         <h2
           className="text-2xl font-bold mt-10 mb-4 text-neutral-900 dark:text-neutral-50"
           id="limits"
@@ -247,20 +250,20 @@ export default function DocsPage() {
           </thead>
           <tbody>
             <tr className="border-b border-neutral-200 dark:border-neutral-800">
-              <td className="py-2 pr-4">Max file size</td>
-              <td className="py-2">10 GB</td>
+              <td className="py-2 pr-4">Max file (anonymous)</td>
+              <td className="py-2">5 GB</td>
+            </tr>
+            <tr className="border-b border-neutral-200 dark:border-neutral-800">
+              <td className="py-2 pr-4">Max file (admin)</td>
+              <td className="py-2">100 GB</td>
             </tr>
             <tr className="border-b border-neutral-200 dark:border-neutral-800">
               <td className="py-2 pr-4">TTL range</td>
-              <td className="py-2">5 min – 7 days</td>
+              <td className="py-2">5 min – 7 days (default 24 h)</td>
             </tr>
             <tr className="border-b border-neutral-200 dark:border-neutral-800">
-              <td className="py-2 pr-4">Default TTL</td>
-              <td className="py-2">24 hours</td>
-            </tr>
-            <tr className="border-b border-neutral-200 dark:border-neutral-800">
-              <td className="py-2 pr-4">Per-IP daily upload</td>
-              <td className="py-2">10 GB total / 100 files</td>
+              <td className="py-2 pr-4">Per-IP daily (anon)</td>
+              <td className="py-2">20 GB / 100 files</td>
             </tr>
             <tr className="border-b border-neutral-200 dark:border-neutral-800">
               <td className="py-2 pr-4">S3 pool total</td>
@@ -268,18 +271,14 @@ export default function DocsPage() {
             </tr>
             <tr className="border-b border-neutral-200 dark:border-neutral-800">
               <td className="py-2 pr-4">Presigned PUT expiry</td>
-              <td className="py-2">10 min</td>
+              <td className="py-2">1 hour</td>
             </tr>
             <tr className="border-b border-neutral-200 dark:border-neutral-800">
               <td className="py-2 pr-4">Presigned GET expiry</td>
               <td className="py-2">5 min</td>
             </tr>
-            <tr className="border-b border-neutral-200 dark:border-neutral-800">
-              <td className="py-2 pr-4">File types</td>
-              <td className="py-2">Any (no restrictions)</td>
-            </tr>
             <tr>
-              <td className="py-2 pr-4">Rate limits (per IP, 60s window)</td>
+              <td className="py-2 pr-4">Rate limits (anon, 60s)</td>
               <td className="py-2">
                 30 init / 30 complete / 60 download / 30 lookup
               </td>
@@ -287,8 +286,8 @@ export default function DocsPage() {
           </tbody>
         </Table>
 
+        {/* ── Quick start ─────────────────────────────────────────────────── */}
         <Hr />
-
         <h2
           className="text-2xl font-bold mt-10 mb-4 text-neutral-900 dark:text-neutral-50"
           id="quickstart"
@@ -304,8 +303,8 @@ KEY=$(echo "$INIT" | sed -n 's/.*"key":"\\([^"]*\\)".*/\\1/p')
 UID=$(echo "$INIT" | sed -n 's/.*"uploadId":"\\([^"]*\\)".*/\\1/p')
 
 # 2. PUT to S3 (capture ETag)
-ETAG=$(curl -fsS -X PUT "$URL" -H "Content-Type: image/jpeg" --data-binary "@photo.jpg" \\
-  -D - | tr -d '\\r' | awk 'tolower($1)=="etag:" {gsub(/"/,"",$2); print $2}')
+ETAG=$(curl -fsS -X PUT "$URL" -H "Content-Type: image/jpeg" \\
+  --data-binary "@photo.jpg" -D - | tr -d '\\r' | awk 'tolower($1)=="etag:"{gsub(/"/,"",$2); print $2}')
 
 # 3. Complete
 curl -fsS -X POST "https://share.022025.xyz/api/upload/complete" \\
