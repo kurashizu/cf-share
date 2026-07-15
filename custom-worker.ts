@@ -17,6 +17,14 @@ import { default as openNextHandler } from "./.open-next/worker.js";
 // @ts-ignore `.open-next/worker.js` is generated at build time
 export { DOQueueHandler, DOShardedTagCache } from "./.open-next/worker.js";
 
+// Polyfill DOMParser for the CF Worker runtime. AWS SDK v3's XML
+// deserializer (used by ListObjectsV2, ListMultipartUploads, etc.)
+// requires DOMParser which is unavailable in Workers even with nodejs_compat.
+import { DOMParser } from "@xmldom/xmldom";
+if (typeof globalThis.DOMParser === "undefined") {
+  (globalThis as any).DOMParser = DOMParser;
+}
+
 import { runCleanup } from "./lib/s3/cleanup";
 
 export default {
