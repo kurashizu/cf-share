@@ -688,7 +688,7 @@ export function Uploader(props: UploaderProps = {}) {
           {isDragActive ? "Drop the file here..." : "Drag & drop a file here"}
         </p>
         <p className="mt-2 text-sm text-neutral-500 dark:text-neutral-400">
-          or click to select · Max 10 GB · Any file type
+          or click to select · Max {maxSize >= 1024 * 1024 * 1024 ? `${Math.round(maxSize / (1024 * 1024 * 1024))} GB` : `${Math.round(maxSize / (1024 * 1024))} MB`} · Any file type
         </p>
       </div>
 
