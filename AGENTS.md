@@ -47,7 +47,7 @@ Multipart upload used for files > 90 MB (50 MB parts).
 
 ## Limits
 
-- Max file: 5 GB
+- Max file: 10 GB
 - TTL: 5 min to 7 days (default 24h)
 - Per-IP daily: 10 GB / 100 files
 - S3 pool: 100 GB total

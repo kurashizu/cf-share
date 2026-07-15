@@ -88,7 +88,7 @@
     "S3_ENDPOINT": "https://s3api.022025.xyz",
     "S3_REGION": "auto",
     "S3_BUCKET": "cf-share",
-    "MAX_FILE_SIZE": "5368709120",
+    "MAX_FILE_SIZE": "10737418240",
     "MIN_SHARE_TTL": "300",
     "MAX_SHARE_TTL": "604800",
     "MAX_DAILY_BYTES_PER_IP": "10737418240",
