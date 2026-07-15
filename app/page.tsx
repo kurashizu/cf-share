@@ -26,7 +26,7 @@ export default function Home() {
           </a>
         </p>
       </div>
-      <Uploader />
+      <Uploader omitCredentials />
     </main>
   );
 }

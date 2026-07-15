@@ -69,9 +69,9 @@ interface MultipartInitResponse {
 
 type InitResponse = SingleInitResponse | MultipartInitResponse;
 
-const MAX_SIZE = 10 * 1024 * 1024 * 1024; // 10 GB
+const DEFAULT_MAX_SIZE = 5 * 1024 * 1024 * 1024; // 5 GB (anon)
 
-const TTL_PRESETS = [
+const ANON_TTL_PRESETS = [
   { label: "5 minutes", value: 300 },
   { label: "30 minutes", value: 1800 },
   { label: "1 hour", value: 3600 },
@@ -81,10 +81,35 @@ const TTL_PRESETS = [
   { label: "7 days", value: 604800 },
 ];
 
-export function Uploader() {
+const ADMIN_TTL_PRESETS = [
+  { label: "No expiry", value: 0 },
+  ...ANON_TTL_PRESETS,
+];
+
+interface UploaderProps {
+  /** Extra headers to send with init/resume/complete fetch calls (e.g. Basic auth). */
+  extraHeaders?: Record<string, string>;
+  /** Max upload size in bytes. Defaults to 5 GB. */
+  maxSize?: number;
+  /** Max TTL presets. When omitted uses anon presets (5 min–7 days). */
+  ttlPresets?: { label: string; value: number }[];
+  /** If true, fetch calls use credentials:"omit" to prevent the browser from
+   *  auto-sending stored Basic auth headers. Use this on the public upload page
+   *  so that authenticated admins don't accidentally bypass anon limits. */
+  omitCredentials?: boolean;
+}
+
+export function Uploader(props: UploaderProps = {}) {
+  const {
+    extraHeaders = {},
+    maxSize = DEFAULT_MAX_SIZE,
+    ttlPresets = ANON_TTL_PRESETS,
+    omitCredentials = false,
+  } = props;
+  const fetchOpts = omitCredentials ? { credentials: "omit" as const } : {};
   const [active, setActive] = useState<ActiveUpload | null>(null);
   const [completed, setCompleted] = useState<CompletedUpload | null>(null);
-  const [ttl, setTtl] = useState(TTL_PRESETS[4].value); // default 24h
+  const [ttl, setTtl] = useState(ttlPresets[4]?.value ?? 86400); // default 24h
   const [password, setPassword] = useState("");
   const cancelledRef = useRef(false);
 
@@ -150,7 +175,8 @@ export function Uploader() {
                   // Try to resume the in-progress upload.
                   const resp = await fetch("/api/upload/resume", {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    headers: { "Content-Type": "application/json", ...extraHeaders },
+                    ...fetchOpts,
                     body: JSON.stringify({
                       s3UploadId: persisted.s3UploadId,
                       key: persisted.key,
@@ -167,13 +193,13 @@ export function Uploader() {
             // Multipart expired or aborted by cleanup. Drop the stale state
             // and fall through to a fresh init.
             clearPersistedUpload(fp);
-            init = await freshInit(file, currentTtl, currentPassword);
+            init = await freshInit(file, currentTtl, currentPassword, extraHeaders, fetchOpts);
           } else {
             const txt = await resp.text();
             throw new Error(`resume ${resp.status}: ${txt}`);
           }
         } else {
-          init = await freshInit(file, currentTtl, currentPassword);
+          init = await freshInit(file, currentTtl, currentPassword, extraHeaders, fetchOpts);
         }
       } catch (err) {
         setActive({
@@ -532,7 +558,8 @@ export function Uploader() {
 
       const r = await fetch("/api/upload/complete", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...extraHeaders },
+        ...fetchOpts,
         body: JSON.stringify(body),
       });
       if (!r.ok) {
@@ -582,7 +609,7 @@ export function Uploader() {
       startUpload(acceptedFiles[0]);
     },
     maxFiles: 1,
-    maxSize: MAX_SIZE,
+    maxSize,
     multiple: false,
     noClick: active !== null && active.state.kind !== "error",
   });
@@ -616,7 +643,7 @@ export function Uploader() {
           disabled={active !== null && active.state.kind !== "error"}
           className="flex-1 px-3 py-2 border border-neutral-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
         >
-          {TTL_PRESETS.map((opt) => (
+          {ttlPresets.map((opt) => (
             <option key={opt.value} value={opt.value}>
               {opt.label}
             </option>
@@ -695,10 +722,13 @@ async function freshInit(
   file: File,
   ttl: number,
   password: string,
+  extraHeaders?: Record<string, string>,
+  fetchOpts?: RequestInit,
 ): Promise<SingleInitResponse | MultipartInitResponse> {
   const resp = await fetch("/api/upload/init", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...extraHeaders },
+    ...fetchOpts,
     body: JSON.stringify({
       filename: file.name,
       size: file.size,

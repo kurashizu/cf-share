@@ -120,7 +120,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
   }
 
-  // ── TTL (share-link lifetime) — same for everyone ──
+  // ── TTL (share-link lifetime) — skipped for admin when ttl=0 (no expiry) ──
   const minTtl = Number(env.MIN_SHARE_TTL);
   const maxTtl = Number(env.MAX_SHARE_TTL);
   let ttl = Number(env.MAX_SHARE_TTL); // default = max
@@ -132,13 +132,17 @@ export async function POST(request: Request): Promise<NextResponse> {
         { status: 400 },
       );
     }
-    if (requested < minTtl || requested > maxTtl) {
+    // Admin can send ttl=0 for "no expiry" (sets expires_at 1 year out).
+    if (requested === 0 && isAdmin) {
+      ttl = 0; // sentinel: complete route will compute a far-future expiresAt
+    } else if (requested < minTtl || requested > maxTtl) {
       return NextResponse.json(
         { error: `ttl must be in [${minTtl}, ${maxTtl}] seconds` },
         { status: 400 },
       );
+    } else {
+      ttl = requested;
     }
-    ttl = requested;
   }
 
   // ── Per-IP daily quota — skipped for admin ──
