@@ -81,7 +81,7 @@
   ],
   // Triggers — daily 03:00 UTC cleanup of expired shares + S3 objects
   "triggers": {
-    "crons": ["*/30 * * * *"],
+    "crons": ["*/5 * * * *"]
   },
   // Vars (non-sensitive)
   "vars": {
