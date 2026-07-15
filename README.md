@@ -13,7 +13,7 @@ never proxies file bodies.
 
 | Limit | Value |
 |---|---|
-| Max file size | 5 GB |
+| Max file size | 10 GB |
 | Min share TTL | 5 minutes |
 | Max share TTL | 7 days |
 | Default TTL | 24 hours |

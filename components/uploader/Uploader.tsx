@@ -61,7 +61,7 @@ interface MultipartInitResponse {
 
 type InitResponse = SingleInitResponse | MultipartInitResponse;
 
-const MAX_SIZE = 5 * 1024 * 1024 * 1024; // 5 GB
+const MAX_SIZE = 10 * 1024 * 1024 * 1024; // 10 GB
 
 const TTL_PRESETS = [
   { label: "5 minutes", value: 300 },
@@ -542,7 +542,7 @@ export function Uploader() {
           {isDragActive ? "Drop the file here..." : "Drag & drop a file here"}
         </p>
         <p className="mt-2 text-sm text-neutral-500 dark:text-neutral-400">
-          or click to select · Max 5 GB · Any file type
+          or click to select · Max 10 GB · Any file type
         </p>
       </div>
 

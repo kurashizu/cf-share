@@ -248,7 +248,7 @@ export default function DocsPage() {
           <tbody>
             <tr className="border-b border-neutral-200 dark:border-neutral-800">
               <td className="py-2 pr-4">Max file size</td>
-              <td className="py-2">5 GB</td>
+              <td className="py-2">10 GB</td>
             </tr>
             <tr className="border-b border-neutral-200 dark:border-neutral-800">
               <td className="py-2 pr-4">TTL range</td>
