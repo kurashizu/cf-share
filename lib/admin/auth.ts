@@ -23,13 +23,24 @@ export function parseBasicAuth(
  * Returns `true` if the Authorization header matches env config.
  */
 export function isAuthorized(
-	env: { S3_ACCESS_KEY_ID: string; S3_SECRET_ACCESS_KEY: string },
-	authHeader: string | null,
+  env: { S3_ACCESS_KEY_ID: string; S3_SECRET_ACCESS_KEY: string },
+  authHeader: string | null,
 ): boolean {
-	const creds = parseBasicAuth(authHeader);
-	if (!creds) return false;
-	return (
-		creds.user === env.S3_ACCESS_KEY_ID &&
-		creds.pass === env.S3_SECRET_ACCESS_KEY
-	);
+  const creds = parseBasicAuth(authHeader);
+  if (!creds) return false;
+  return (
+    creds.user === env.S3_ACCESS_KEY_ID &&
+    creds.pass === env.S3_SECRET_ACCESS_KEY
+  );
+}
+
+/**
+ * Convenience: extract the Authorization header from a Request and check it
+ * against the configured S3 credentials. Returns `true` for valid Basic auth.
+ */
+export function requestIsAuthorized(
+  env: { S3_ACCESS_KEY_ID: string; S3_SECRET_ACCESS_KEY: string },
+  request: Request,
+): boolean {
+  return isAuthorized(env, request.headers.get("authorization"));
 }

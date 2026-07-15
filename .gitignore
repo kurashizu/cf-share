@@ -49,3 +49,6 @@ next-env.d.ts
 .dev.vars
 .dev.vars.*
 !.dev.vars.example
+
+# Python test scripts
+__pycache__/

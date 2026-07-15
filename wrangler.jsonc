@@ -88,10 +88,11 @@
     "S3_ENDPOINT": "https://s3api.022025.xyz",
     "S3_REGION": "auto",
     "S3_BUCKET": "cf-share",
-    "MAX_FILE_SIZE": "10737418240",
+    "MAX_FILE_SIZE": "5368709120",
+    "MAX_FILE_SIZE_ADMIN": "107374182400",
     "MIN_SHARE_TTL": "300",
     "MAX_SHARE_TTL": "604800",
-    "MAX_DAILY_BYTES_PER_IP": "10737418240",
+    "MAX_DAILY_BYTES_PER_IP": "21474836480",
     "MAX_DAILY_COUNT_PER_IP": "100",
     "MAX_TOTAL_BYTES": "107374182400",
     "UPLOAD_URL_TTL": "3600",
@@ -100,6 +101,7 @@
     "CLEANUP_BATCH_SIZE": "500",
     "CLEANUP_MAX_BATCH_MS": "25000",
     "CLEANUP_QUOTA_KEEP_DAYS": "30",
+    "CLEANUP_AUDIT_KEEP_DAYS": "30",
   },
   // Secrets (use .dev.vars locally, `wrangler secret put` in production):
   //   S3_ACCESS_KEY_ID

@@ -1,9 +1,10 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { NextResponse } from "next/server";
-import { HeadObjectCommand } from "@aws-sdk/client-s3";
+import { HeadObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { createS3Client, bucketName } from "../../../../lib/s3/client";
 import {
   completeMultipartUpload,
+  abortMultipartUpload,
   type CompletedPart,
 } from "../../../../lib/s3/multipart";
 import { checkRateLimit } from "../../../../lib/rate-limit/check";
@@ -15,6 +16,7 @@ import {
   readQuota,
 } from "../../../../lib/share/store";
 import { hashPassword, isValidPassword } from "../../../../lib/share/password";
+import { requestIsAuthorized } from "../../../../lib/admin/auth";
 
 export const runtime = "nodejs";
 
@@ -40,6 +42,27 @@ interface CompleteResponse {
 }
 
 /**
+ * Best-effort delete of an S3 object (idempotent on 404). Used to clean up
+ * when we have to roll back after partial completion (S3 merged but D1
+ * failed, etc.). Errors are logged but not thrown — callers are already in
+ * an error path.
+ */
+async function safeDeleteS3Object(
+  client: ReturnType<typeof createS3Client>,
+  bucket: string,
+  key: string,
+): Promise<void> {
+  try {
+    await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
+  } catch (err) {
+    console.error("[complete] rollback S3 delete failed", {
+      key,
+      err: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
+/**
  * POST /api/upload/complete
  *
  * Finalizes an upload — supports two modes detected from body fields:
@@ -56,16 +79,22 @@ export async function POST(request: Request): Promise<NextResponse> {
   const ip = getClientIp(request);
   const userAgent = request.headers.get("user-agent")?.slice(0, 200) ?? null;
 
-  // ── Rate limit ──
-  const rl = await checkRateLimit(env, "UPLOAD_COMPLETE_LIMIT", ip);
-  if (!rl.success) {
-    await audit(env, {
-      ip,
-      action: "complete",
-      status: 429,
-      detail: { reason: "rate-limit" },
-    });
-    return NextResponse.json({ error: "Too Many Requests" }, { status: 429 });
+  // Admin bypass: HTTP Basic auth skips rate limiting and per-IP daily quota.
+  // Admin uploads are still audit-logged with `via: "admin"`.
+  const isAdmin = requestIsAuthorized(env, request);
+
+  // ── Rate limit — skipped for admin ──
+  if (!isAdmin) {
+    const rl = await checkRateLimit(env, "UPLOAD_COMPLETE_LIMIT", ip);
+    if (!rl.success) {
+      await audit(env, {
+        ip,
+        action: "complete",
+        status: 429,
+        detail: { reason: "rate-limit" },
+      });
+      return NextResponse.json({ error: "Too Many Requests" }, { status: 429 });
+    }
   }
 
   // ── Parse body ──
@@ -138,37 +167,46 @@ export async function POST(request: Request): Promise<NextResponse> {
     passwordSalt = hashed.salt;
   }
 
-  // ── Per-IP daily quota pre-check ──
-  const dayKey = utcDayKey();
-  const maxBytes = Number(env.MAX_DAILY_BYTES_PER_IP);
-  const maxCount = Number(env.MAX_DAILY_COUNT_PER_IP);
+  // ── Per-IP daily quota pre-check — skipped for admin ──
+  let dayKey = "";
+  let maxBytes = 0;
+  let maxCount = 0;
+  if (!isAdmin) {
+    dayKey = utcDayKey();
+    maxBytes = Number(env.MAX_DAILY_BYTES_PER_IP);
+    maxCount = Number(env.MAX_DAILY_COUNT_PER_IP);
 
-  const quota = await readQuota(env, ip, dayKey);
-  if (quota) {
-    if (quota.totalBytes + size > maxBytes) {
-      await audit(env, {
-        ip,
-        action: "complete",
-        status: 429,
-        detail: { reason: "quota-bytes", quota },
-      });
-      return NextResponse.json(
-        { error: `Daily upload limit exceeded (max ${maxBytes} bytes per IP)` },
-        { status: 429 },
-      );
+    const quota = await readQuota(env, ip, dayKey);
+    if (quota) {
+      if (quota.totalBytes + size > maxBytes) {
+        await audit(env, {
+          ip,
+          action: "complete",
+          status: 429,
+          detail: { reason: "quota-bytes", quota },
+        });
+        return NextResponse.json(
+          { error: `Daily upload limit exceeded (max ${maxBytes} bytes per IP)` },
+          { status: 429 },
+        );
+      }
+      if (quota.count + 1 > maxCount) {
+        await audit(env, {
+          ip,
+          action: "complete",
+          status: 429,
+          detail: { reason: "quota-count", quota },
+        });
+        return NextResponse.json(
+          { error: `Daily file count exceeded (max ${maxCount} files per IP)` },
+          { status: 429 },
+        );
+      }
     }
-    if (quota.count + 1 > maxCount) {
-      await audit(env, {
-        ip,
-        action: "complete",
-        status: 429,
-        detail: { reason: "quota-count", quota },
-      });
-      return NextResponse.json(
-        { error: `Daily file count exceeded (max ${maxCount} files per IP)` },
-        { status: 429 },
-      );
-    }
+  } else {
+    // For admin we still need a dayKey for the audit log context, but quota
+    // is never read or written for admin uploads.
+    dayKey = utcDayKey();
   }
 
   const client = createS3Client(env);
@@ -220,6 +258,9 @@ export async function POST(request: Request): Promise<NextResponse> {
         parts,
       });
     } catch (err) {
+      // Roll back: abort the multipart session so the partial parts in S3
+      // don't linger until the cleanup cron notices. Don't try to delete the
+      // final object (it doesn't exist yet on this path).
       await audit(env, {
         ip,
         action: "complete",
@@ -231,6 +272,20 @@ export async function POST(request: Request): Promise<NextResponse> {
           error: err instanceof Error ? err.message : String(err),
         },
       });
+      try {
+        await abortMultipartUpload({
+          client,
+          bucket: bucketName(env),
+          key,
+          uploadId: s3UploadId,
+        });
+      } catch (abortErr) {
+        console.error("[complete] rollback abort failed", {
+          key,
+          s3UploadId,
+          err: abortErr instanceof Error ? abortErr.message : String(abortErr),
+        });
+      }
       return NextResponse.json(
         { error: "Failed to finalize multipart upload on S3" },
         { status: 500 },
@@ -255,26 +310,71 @@ export async function POST(request: Request): Promise<NextResponse> {
       });
       token = r.token;
     } catch (err) {
+      // D1 mint failed but S3 object is already merged and live. Without
+      // a D1 row, the cleanup cron can't see it (it queries by expires_at),
+      // so this object would become a permanent orphan. Roll back by
+      // deleting the S3 object.
       await audit(env, {
         ip,
         action: "complete",
         status: 500,
         detail: {
           reason: "create-share-failed",
+          key,
           error: err instanceof Error ? err.message : String(err),
         },
       });
+      await safeDeleteS3Object(client, bucketName(env), key);
       return NextResponse.json(
         { error: "Failed to mint share token" },
         { status: 500 },
       );
     }
 
-    // ── Increment quota ──
-    try {
-      await incrementQuota(env, { ip, day: dayKey, bytes: size });
-    } catch {
-      // non-fatal
+    // ── Increment quota (atomic; rolls back S3 if it breaches) — skipped for admin ──
+    if (!isAdmin) {
+      const q = await incrementQuota(env, {
+        ip,
+        day: dayKey,
+        bytes: size,
+        maxBytes,
+        maxCount,
+      });
+      if (!q.ok) {
+        // Quota check passed at the top of the handler but the atomic increment
+        // failed — a concurrent upload from the same IP must have crossed the
+        // limit in between. The share row we just minted has no quota backing;
+        // delete it and the S3 object to keep state consistent.
+        console.warn("[complete] quota raced, rolling back", {
+          ip,
+          day: dayKey,
+          reason: q.reason,
+          totalBytes: q.totalBytes,
+          count: q.count,
+        });
+        await audit(env, {
+          ip,
+          action: "complete",
+          status: 429,
+          detail: {
+            reason: `quota-${q.reason}-raced`,
+            quota: { totalBytes: q.totalBytes, count: q.count },
+          },
+        });
+        try {
+          await env.DB.prepare(`DELETE FROM shares WHERE token = ?1`).bind(token).run();
+        } catch (delErr) {
+          console.error("[complete] rollback D1 delete failed", {
+            token,
+            err: delErr instanceof Error ? delErr.message : String(delErr),
+          });
+        }
+        await safeDeleteS3Object(client, bucketName(env), key);
+        return NextResponse.json(
+          { error: `Daily upload limit exceeded (max ${maxBytes} bytes per IP)` },
+          { status: 429 },
+        );
+      }
     }
 
     await audit(env, {
@@ -282,7 +382,14 @@ export async function POST(request: Request): Promise<NextResponse> {
       action: "complete",
       shareToken: token,
       status: 200,
-      detail: { key, size, expiresAt, mode: "multipart", parts: parts.length },
+      detail: {
+        key,
+        size,
+        expiresAt,
+        mode: "multipart",
+        parts: parts.length,
+        via: isAdmin ? "admin" : "anon",
+      },
     });
 
     const base = new URL(request.url).origin;
@@ -300,38 +407,31 @@ export async function POST(request: Request): Promise<NextResponse> {
   const etag = typeof body.etag === "string" ? body.etag.trim() : "";
   if (!etag) {
     return NextResponse.json(
-      { error: "etag is required for single upload mode" },
+      { error: "etag is required for single PUT uploads" },
       { status: 400 },
     );
   }
 
-  // Best-effort verification
+  // Verify the object actually exists in S3 before minting a share token.
+  // MinIO via Cloudflare WAF sometimes blocks HeadObject from Workers (err
+  // 1010), so on failure we trust the client's presigned-PUT success and
+  // audit-log the skip rather than failing the upload entirely. The cron
+  // cleanup will catch any orphans on its next run.
   let verified = false;
-  try {
-    const head = await client.send(
-      new HeadObjectCommand({
-        Bucket: env.S3_BUCKET,
-        Key: key,
-      }),
-    );
-    const objSize = head.ContentLength ?? -1;
-    const objEtag = (head.ETag ?? "").replace(/"/g, "");
-    if (objSize === size && objEtag === etag.replace(/"/g, "")) {
+  const head = await client.send(
+    new HeadObjectCommand({ Bucket: bucketName(env), Key: key }),
+  );
+  if (
+    head &&
+    typeof head.ContentLength === "number" &&
+    head.ContentLength > 0
+  ) {
+    const objSize = head.ContentLength;
+    const objEtag =
+      typeof head.ETag === "string" ? head.ETag.replace(/"/g, "") : "";
+    if (objSize === size && objEtag === etag) {
       verified = true;
-    } else {
-      console.warn("[complete] S3 verification mismatch", {
-        key,
-        clientSize: size,
-        clientEtag: etag,
-        objSize,
-        objEtag,
-      });
     }
-  } catch (err) {
-    console.warn("[complete] S3 verification unavailable (expected on MinIO)", {
-      key,
-      error: err instanceof Error ? err.message : String(err),
-    });
   }
 
   if (!verified) {
@@ -368,26 +468,66 @@ export async function POST(request: Request): Promise<NextResponse> {
     });
     token = r.token;
   } catch (err) {
+    // D1 mint failed but the S3 object is already uploaded (single PUT) and
+    // live. Without a D1 row the cleanup cron can't see it. Roll back by
+    // deleting the S3 object so it doesn't become a permanent orphan.
     await audit(env, {
       ip,
       action: "complete",
       status: 500,
       detail: {
         reason: "create-share-failed",
+        key,
         error: err instanceof Error ? err.message : String(err),
       },
     });
+    await safeDeleteS3Object(client, bucketName(env), key);
     return NextResponse.json(
       { error: "Failed to mint share token" },
       { status: 500 },
     );
   }
 
-  // ── Increment quota ──
-  try {
-    await incrementQuota(env, { ip, day: dayKey, bytes: size });
-  } catch {
-    // non-fatal
+  // ── Increment quota (atomic; rolls back S3 if it breaches) — skipped for admin ──
+  if (!isAdmin) {
+    const q = await incrementQuota(env, {
+      ip,
+      day: dayKey,
+      bytes: size,
+      maxBytes,
+      maxCount,
+    });
+    if (!q.ok) {
+      console.warn("[complete] quota raced, rolling back", {
+        ip,
+        day: dayKey,
+        reason: q.reason,
+        totalBytes: q.totalBytes,
+        count: q.count,
+      });
+      await audit(env, {
+        ip,
+        action: "complete",
+        status: 429,
+        detail: {
+          reason: `quota-${q.reason}-raced`,
+          quota: { totalBytes: q.totalBytes, count: q.count },
+        },
+      });
+      try {
+        await env.DB.prepare(`DELETE FROM shares WHERE token = ?1`).bind(token).run();
+      } catch (delErr) {
+        console.error("[complete] rollback D1 delete failed", {
+          token,
+          err: delErr instanceof Error ? delErr.message : String(delErr),
+        });
+      }
+      await safeDeleteS3Object(client, bucketName(env), key);
+      return NextResponse.json(
+        { error: `Daily upload limit exceeded (max ${maxBytes} bytes per IP)` },
+        { status: 429 },
+      );
+    }
   }
 
   await audit(env, {
@@ -395,7 +535,13 @@ export async function POST(request: Request): Promise<NextResponse> {
     action: "complete",
     shareToken: token,
     status: 200,
-    detail: { key, size, expiresAt, mode: "single" },
+    detail: {
+      key,
+      size,
+      expiresAt,
+      mode: "single",
+      via: isAdmin ? "admin" : "anon",
+    },
   });
 
   const base = new URL(request.url).origin;

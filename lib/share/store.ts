@@ -123,18 +123,35 @@ export async function recordDownload(
   return r?.download_count ?? null;
 }
 
-/** Atomically increment an IP's daily upload quota. Returns the new totals. */
+/**
+ * Atomically increment an IP's daily upload quota, refusing if the new total
+ * would exceed `maxBytes` or the new count would exceed `maxCount`.
+ *
+ * Returns `{ ok: true, ... }` on success, or `{ ok: false, reason }` if the
+ * increment would breach the quota. The caller decides whether to surface
+ * an error to the user.
+ *
+ * Implementation: a single UPDATE with a WHERE clause that bounds the new
+ * total. SQLite serializes write transactions, so concurrent invocations
+ * cannot both pass a non-atomic read+write check. We then INSERT-OR-IGNORE
+ * a row for this IP/day so the WHERE has something to match on a brand-new
+ * IP.
+ */
 export async function incrementQuota(
   env: CloudflareEnv,
   args: {
     ip: string;
     day: string;
     bytes: number;
+    maxBytes: number;
+    maxCount: number;
   },
-): Promise<{ totalBytes: number; count: number }> {
-  // Upsert: insert 0,0 then add. D1 doesn't have ON CONFLICT … DO UPDATE
-  // with RETURNING reliably, so we do read+write in two statements (good
-  // enough at our QPS).
+): Promise<
+  | { ok: true; totalBytes: number; count: number }
+  | { ok: false; reason: "quota-bytes" | "quota-count"; totalBytes: number; count: number }
+> {
+  // Ensure a row exists for this (ip, day). ON CONFLICT DO NOTHING makes this
+  // a no-op on existing rows.
   await env.DB.prepare(
     `INSERT INTO upload_quota (ip, day, total_bytes, count)
 		 VALUES (?1, ?2, 0, 0)
@@ -143,20 +160,34 @@ export async function incrementQuota(
     .bind(args.ip, args.day)
     .run();
 
+  // Atomic bounded update. The WHERE clause makes the increment conditional
+  // on the new total/count still being within limits, eliminating the
+  // TOCTOU window between a read-then-write quota check.
   const r = await env.DB.prepare(
     `UPDATE upload_quota
 		 SET total_bytes = total_bytes + ?3,
 		     count       = count + 1
 		 WHERE ip = ?1 AND day = ?2
+		   AND total_bytes + ?3 <= ?4
+		   AND count + 1 <= ?5
 		 RETURNING total_bytes, count`,
   )
-    .bind(args.ip, args.day, args.bytes)
+    .bind(args.ip, args.day, args.bytes, args.maxBytes, args.maxCount)
     .first<{ total_bytes: number; count: number }>();
 
-  return {
-    totalBytes: r?.total_bytes ?? 0,
-    count: r?.count ?? 0,
-  };
+  if (r) {
+    return { ok: true, totalBytes: r.total_bytes, count: r.count };
+  }
+
+  // UPDATE matched no rows — either the row is gone (shouldn't happen since
+  // we just INSERTed) or the increment would breach a limit. Re-read to
+  // figure out which limit and to return the current totals for the caller.
+  const cur = await readQuota(env, args.ip, args.day);
+  const totalBytes = cur?.totalBytes ?? 0;
+  const count = cur?.count ?? 0;
+  const reason: "quota-bytes" | "quota-count" =
+    totalBytes + args.bytes > args.maxBytes ? "quota-bytes" : "quota-count";
+  return { ok: false, reason, totalBytes, count };
 }
 
 /** Read the current quota row for an IP+day (does not create one). */
