@@ -19,6 +19,7 @@
     "@aws-sdk/client-s3": "^3.1071.0",
     "@aws-sdk/s3-request-presigner": "^3.1071.0",
     "@opennextjs/cloudflare": "^1.19.9",
+    "@xmldom/xmldom": "^0.9.10",
     "next": "16.2.6",
     "qrcode": "^1.5.4",
     "react": "^19.1.7",

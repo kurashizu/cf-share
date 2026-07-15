@@ -244,10 +244,12 @@ export async function cleanupOrphanedMultipartUploads(
       }
     }
   } catch (err) {
-    // ListMultipartUploads may fail if S3 doesn't support it or bucket policy
-    // restricts it. Non-fatal.
+    const httpStatus = (err as { $metadata?: { httpStatusCode?: number } })?.$metadata?.httpStatusCode ?? 0;
+    const errName = (err as { name?: string })?.name ?? "Unknown";
     console.warn("[cleanup] ListMultipartUploads failed (non-fatal)", {
-      err: String(err),
+      name: errName,
+      httpStatus,
+      message: String(err),
     });
   }
 
