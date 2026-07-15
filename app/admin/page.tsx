@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { Uploader } from "../../components/uploader/Uploader";
 
 /* ================================================================== */
 /*  Types                                                             */
@@ -58,7 +59,7 @@ interface AuditData {
   totalEntries: number;
 }
 
-type TabId = "shares" | "audit";
+type TabId = "shares" | "audit" | "upload";
 
 /* ================================================================== */
 /*  Helpers                                                           */
@@ -264,6 +265,9 @@ export default function AdminPage() {
         </TabBtn>
         <TabBtn active={tab === "audit"} onClick={() => setTab("audit")}>
           Audit Log
+        </TabBtn>
+        <TabBtn active={tab === "upload"} onClick={() => setTab("upload")}>
+          Upload
         </TabBtn>
       </div>
 
@@ -669,6 +673,29 @@ export default function AdminPage() {
             </>
           ) : null}
         </>
+      )}
+
+      {/* ── Upload Tab ──────────────────────────────────────────── */}
+      {tab === "upload" && (
+        <div className="max-w-2xl mx-auto">
+          <p className="text-sm text-neutral-500 dark:text-neutral-400 mb-4">
+            Admin uploads bypass all quotas. Select "No expiry" for shares
+            that never expire.
+          </p>
+          <Uploader
+            maxSize={100 * 1024 * 1024 * 1024}
+            ttlPresets={[
+              { label: "No expiry", value: 0 },
+              { label: "5 minutes", value: 300 },
+              { label: "30 minutes", value: 1800 },
+              { label: "1 hour", value: 3600 },
+              { label: "6 hours", value: 21600 },
+              { label: "24 hours", value: 86400 },
+              { label: "3 days", value: 259200 },
+              { label: "7 days", value: 604800 },
+            ]}
+          />
+        </div>
       )}
     </div>
   );

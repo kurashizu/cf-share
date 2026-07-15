@@ -139,13 +139,17 @@ export async function POST(request: Request): Promise<NextResponse> {
         { status: 400 },
       );
     }
-    if (requested < minTtl || requested > maxTtl) {
+    // Admin can send ttl=0 for "no expiry".
+    if (requested === 0 && isAdmin) {
+      ttl = 0;
+    } else if (requested < minTtl || requested > maxTtl) {
       return NextResponse.json(
         { error: `ttl must be in [${minTtl}, ${maxTtl}] seconds` },
         { status: 400 },
       );
+    } else {
+      ttl = requested;
     }
-    ttl = requested;
   }
 
   // ── Password ──
@@ -293,7 +297,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     }
 
     // ── Mint token ──
-    const expiresAt = Date.now() + ttl * 1000;
+    const expiresAt = ttl === 0 ? Date.now() + 100 * 365 * 86400 * 1000 : Date.now() + ttl * 1000;
     let token: string;
     try {
       const r = await createShare(env, {
@@ -451,7 +455,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   // ── Mint token ──
-  const expiresAt = Date.now() + ttl * 1000;
+  const expiresAt = ttl === 0 ? Date.now() + 100 * 365 * 86400 * 1000 : Date.now() + ttl * 1000;
   let token: string;
   try {
     const r = await createShare(env, {
