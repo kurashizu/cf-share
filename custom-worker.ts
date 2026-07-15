@@ -17,13 +17,29 @@ import { default as openNextHandler } from "./.open-next/worker.js";
 // @ts-ignore `.open-next/worker.js` is generated at build time
 export { DOQueueHandler, DOShardedTagCache } from "./.open-next/worker.js";
 
-// Polyfill DOMParser for the CF Worker runtime. AWS SDK v3's XML
+// Polyfill DOM globals for the CF Worker runtime. AWS SDK v3's XML
 // deserializer (used by ListObjectsV2, ListMultipartUploads, etc.)
-// requires DOMParser which is unavailable in Workers even with nodejs_compat.
-import { DOMParser } from "@xmldom/xmldom";
-if (typeof globalThis.DOMParser === "undefined") {
-  (globalThis as any).DOMParser = DOMParser;
-}
+// requires DOMParser, Node, etc. which are unavailable in Workers
+// even with nodejs_compat.
+import {
+  DOMParser,
+  Node,
+  Document,
+  Element,
+  Attr,
+  Text,
+  NodeList,
+  NamedNodeMap,
+} from "@xmldom/xmldom";
+const g = globalThis as Record<string, unknown>;
+if (!g.DOMParser) g.DOMParser = DOMParser;
+if (!g.Node) g.Node = Node;
+if (!g.Document) g.Document = Document;
+if (!g.Element) g.Element = Element;
+if (!g.Attr) g.Attr = Attr;
+if (!g.Text) g.Text = Text;
+if (!g.NodeList) g.NodeList = NodeList;
+if (!g.NamedNodeMap) g.NamedNodeMap = NamedNodeMap;
 
 import { runCleanup } from "./lib/s3/cleanup";
 
