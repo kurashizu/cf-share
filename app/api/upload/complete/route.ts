@@ -73,11 +73,42 @@ async function safeDeleteS3Object(
  *   multipart:
  *     { mode:"multipart", uploadId, s3UploadId, key, filename, size,
  *       contentType, parts:[{partNumber,etag}], ttl, password? }
+ *
+ * Top-level try/catch mirrors `app/api/upload/resume/route.ts`: any
+ * unhandled exception is logged and converted to a JSON 500 instead of
+ * the framework's plain-text 500, which makes debugging from browser /
+ * logs much easier. Specifically, the HeadObject call below can throw
+ * when Cloudflare WAF blocks per-object S3 operations from Workers
+ * (err 1010); see comment there.
  */
 export async function POST(request: Request): Promise<NextResponse> {
   const { env } = await getCloudflareContext();
   const ip = getClientIp(request);
   const userAgent = request.headers.get("user-agent")?.slice(0, 200) ?? null;
+
+  try {
+    return await handleComplete(request, { env, ip, userAgent });
+  } catch (err) {
+    console.error("[complete] unhandled error", {
+      err: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack : undefined,
+    });
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
+  }
+}
+
+async function handleComplete(
+  request: Request,
+  ctx: {
+    env: Awaited<ReturnType<typeof getCloudflareContext>>["env"];
+    ip: string;
+    userAgent: string | null;
+  },
+): Promise<NextResponse> {
+  const { env, ip, userAgent } = ctx;
 
   // Admin bypass: HTTP Basic auth skips rate limiting and per-IP daily quota.
   // Admin uploads are still audit-logged with `via: "admin"`.
@@ -421,21 +452,37 @@ export async function POST(request: Request): Promise<NextResponse> {
   // 1010), so on failure we trust the client's presigned-PUT success and
   // audit-log the skip rather than failing the upload entirely. The cron
   // cleanup will catch any orphans on its next run.
+  //
+  // Implementation note: an unguarded `client.send(...)` here used to surface
+  // as a framework-level 500 with no body, because the exception bubbled past
+  // the route handler. We now wrap it in try/catch exactly as the comment
+  // above describes — record the skip and continue.
   let verified = false;
-  const head = await client.send(
-    new HeadObjectCommand({ Bucket: bucketName(env), Key: key }),
-  );
-  if (
-    head &&
-    typeof head.ContentLength === "number" &&
-    head.ContentLength > 0
-  ) {
-    const objSize = head.ContentLength;
-    const objEtag =
-      typeof head.ETag === "string" ? head.ETag.replace(/"/g, "") : "";
-    if (objSize === size && objEtag === etag) {
-      verified = true;
+  let headError: string | null = null;
+  try {
+    const head = await client.send(
+      new HeadObjectCommand({ Bucket: bucketName(env), Key: key }),
+    );
+    if (
+      head &&
+      typeof head.ContentLength === "number" &&
+      head.ContentLength > 0
+    ) {
+      const objSize = head.ContentLength;
+      const objEtag =
+        typeof head.ETag === "string" ? head.ETag.replace(/"/g, "") : "";
+      if (objSize === size && objEtag === etag) {
+        verified = true;
+      }
     }
+  } catch (err) {
+    headError = err instanceof Error ? err.message : String(err);
+    console.warn("[complete] HeadObject failed, trusting client PUT", {
+      key,
+      size,
+      etag,
+      err: headError,
+    });
   }
 
   if (!verified) {
@@ -449,7 +496,8 @@ export async function POST(request: Request): Promise<NextResponse> {
         size,
         etag,
         s3Error:
-          "MinIO blocks per-object operations from Workers; trusting client-reported PUT success",
+          headError ??
+          "HeadObject did not match client-reported size/etag; trusting client-reported PUT success",
       },
     });
   }
