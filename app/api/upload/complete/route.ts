@@ -112,7 +112,7 @@ async function handleComplete(
 
   // Admin bypass: HTTP Basic auth skips rate limiting and per-IP daily quota.
   // Admin uploads are still audit-logged with `via: "admin"`.
-  const isAdmin = requestIsAuthorized(env, request);
+  const isAdmin = await requestIsAuthorized(env, request);
 
   // ── Rate limit — skipped for admin ──
   if (!isAdmin) {

@@ -28,23 +28,31 @@ interface __BaseEnv_CloudflareEnv {
 	CLEANUP_AUDIT_KEEP_DAYS: "30";
 	NEXTJS_ENV: string;
 	S3_ACCESS_KEY_ID: string;
-	S3_SECRET_ACCESS_KEY: string;
-	CRON_SECRET: string;
-	WORKER_SELF_REFERENCE: Service<typeof import("./custom-worker").default>;
-}
-declare namespace Cloudflare {
-	interface GlobalProps {
-		mainModule: typeof import("./custom-worker");
+		S3_SECRET_ACCESS_KEY: string;
+		CRON_SECRET: string;
+		WORKER_SELF_REFERENCE: Service<typeof import("./custom-worker").default>;
 	}
-	interface Env extends __BaseEnv_CloudflareEnv {}
-}
-interface CloudflareEnv extends __BaseEnv_CloudflareEnv {}
-type StringifyValues<EnvType extends Record<string, unknown>> = {
-	[Binding in keyof EnvType]: EnvType[Binding] extends string ? EnvType[Binding] : string;
-};
-declare namespace NodeJS {
-	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "S3_ENDPOINT" | "S3_REGION" | "S3_BUCKET" | "MAX_FILE_SIZE" | "MAX_FILE_SIZE_ADMIN" | "MIN_SHARE_TTL" | "MAX_SHARE_TTL" | "MAX_DAILY_BYTES_PER_IP" | "MAX_DAILY_COUNT_PER_IP" | "MAX_TOTAL_BYTES" | "UPLOAD_URL_TTL" | "DOWNLOAD_URL_TTL" | "CLEANUP_BATCH_SIZE" | "CLEANUP_MAX_BATCH_MS" | "CLEANUP_QUOTA_KEEP_DAYS" | "CLEANUP_AUDIT_KEEP_DAYS" | "NEXTJS_ENV" | "S3_ACCESS_KEY_ID" | "S3_SECRET_ACCESS_KEY" | "CRON_SECRET">> {}
-}
+	declare namespace Cloudflare {
+		interface GlobalProps {
+			mainModule: typeof import("./custom-worker");
+		}
+		interface Env extends __BaseEnv_CloudflareEnv, __AdminEnv_CloudflareEnv {}
+	}
+	interface CloudflareEnv extends __BaseEnv_CloudflareEnv, __AdminEnv_CloudflareEnv {}
+	// Hand-maintained extensions to the generated CloudflareEnv interface.
+	// These live outside the wrangler-generated block so that re-running
+	// `wrangler types` doesn't silently drop them.
+	interface __AdminEnv_CloudflareEnv {
+		ADMIN_PASSWORD: string;
+		ADMIN_JWT_SECRET: string;
+		ADMIN_JWT_TTL_SECONDS: "28800";
+	}
+	type StringifyValues<EnvType extends Record<string, unknown>> = {
+		[Binding in keyof EnvType]: EnvType[Binding] extends string ? EnvType[Binding] : string;
+	};
+	declare namespace NodeJS {
+		interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "S3_ENDPOINT" | "S3_REGION" | "S3_BUCKET" | "MAX_FILE_SIZE" | "MAX_FILE_SIZE_ADMIN" | "MIN_SHARE_TTL" | "MAX_SHARE_TTL" | "MAX_DAILY_BYTES_PER_IP" | "MAX_DAILY_COUNT_PER_IP" | "MAX_TOTAL_BYTES" | "UPLOAD_URL_TTL" | "DOWNLOAD_URL_TTL" | "CLEANUP_BATCH_SIZE" | "CLEANUP_MAX_BATCH_MS" | "CLEANUP_QUOTA_KEEP_DAYS" | "CLEANUP_AUDIT_KEEP_DAYS" | "NEXTJS_ENV" | "S3_ACCESS_KEY_ID" | "S3_SECRET_ACCESS_KEY" | "CRON_SECRET" | "ADMIN_PASSWORD" | "ADMIN_JWT_SECRET" | "ADMIN_JWT_TTL_SECONDS">> {}
+	}
 
 // Begin runtime types
 /*! *****************************************************************************

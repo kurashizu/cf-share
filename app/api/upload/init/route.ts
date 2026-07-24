@@ -64,7 +64,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   // Admin bypass: HTTP Basic auth matching S3 credentials unlocks a higher
   // per-file cap and skips rate limiting + per-IP daily quota + total pool
   // quota. Audit still logs the upload with `via: "admin"` so it's traceable.
-  const isAdmin = requestIsAuthorized(env, request);
+  const isAdmin = await requestIsAuthorized(env, request);
 
   // ── Rate limit (per-IP, per-minute) — skipped for admin ──
   if (!isAdmin) {
