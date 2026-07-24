@@ -2,7 +2,7 @@
 
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { NextRequest, NextResponse } from "next/server";
-import { isAuthorized } from "../../../../lib/admin/auth";
+import { requestIsAuthorized } from "../../../../lib/admin/auth";
 
 const PAGE_SIZE = 50;
 
@@ -15,20 +15,14 @@ const PAGE_SIZE = 50;
  *   all    - if "1", include expired shares (default: active only)
  *
  * Returns JSON with shares list + aggregate stats.
- * Protected by HTTP Basic Auth (S3 credentials).
+ * Protected by JWT cookie set at /api/admin/login.
  */
 export async function GET(request: NextRequest) {
 	const { env } = await getCloudflareContext();
 
-	// ── Auth ──────────────────────────────────────────────────────────────
-	if (!isAuthorized(env, request.headers.get("authorization"))) {
-		return NextResponse.json(
-			{ error: "Unauthorized" },
-			{
-				status: 401,
-				headers: { "WWW-Authenticate": 'Basic realm="Admin Panel"' },
-			},
-		);
+	// ── Auth ─────────────────────────────────────────────────────────────────────
+	if (!(await requestIsAuthorized(env, request))) {
+		return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 	}
 
 	// ── Params ────────────────────────────────────────────────────────────

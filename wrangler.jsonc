@@ -97,6 +97,7 @@
     "MAX_TOTAL_BYTES": "107374182400",
     "UPLOAD_URL_TTL": "3600",
     "DOWNLOAD_URL_TTL": "300",
+    "ADMIN_JWT_TTL_SECONDS": "28800",
     // Cleanup cron tunables (consumed by lib/s3/cleanup.ts)
     "CLEANUP_BATCH_SIZE": "500",
     "CLEANUP_MAX_BATCH_MS": "25000",
@@ -107,6 +108,11 @@
   //   S3_ACCESS_KEY_ID
   //   S3_SECRET_ACCESS_KEY
   //   CRON_SECRET            — required for /api/cron/cleanup HTTP trigger
+  //   ADMIN_PASSWORD         — password for the /admin panel login form
+  //   ADMIN_JWT_SECRET       — HMAC secret for signing the admin session JWT
+  //
+  // Vars below are non-secret defaults (committed to git):
+  //   ADMIN_JWT_TTL_SECONDS  — JWT lifetime (default 28800 = 8 hours)
   "observability": {
     "enabled": true,
     "head_sampling_rate": 1,

@@ -5,49 +5,21 @@ import { NextRequest, NextResponse } from "next/server";
 import { deleteS3Object, deleteShareRow } from "../../../../lib/s3/cleanup";
 import { audit } from "../../../../lib/util/audit";
 import { getClientIp } from "../../../../lib/util/ip";
-
-/* ------------------------------------------------------------------ */
-/*  Auth helper                                                       */
-/* ------------------------------------------------------------------ */
-
-function parseBasicAuth(
-	header: string | null,
-): { user: string; pass: string } | null {
-	if (!header || !header.startsWith("Basic ")) return null;
-	try {
-		const raw = atob(header.slice(6));
-		const colon = raw.indexOf(":");
-		if (colon === -1) return null;
-		return { user: raw.slice(0, colon), pass: raw.slice(colon + 1) };
-	} catch {
-		return null;
-	}
-}
+import { requestIsAuthorized } from "../../../../lib/admin/auth";
 
 /**
  * DELETE /api/admin/delete?token=XXXX
  *
  * Deletes a single share: removes the S3 object and the D1 row.
- * Protected by HTTP Basic Auth using S3 credentials.
+ * Protected by JWT cookie set at /api/admin/login.
  * Logs the action to audit_log.
  */
 export async function DELETE(request: NextRequest) {
 	const { env } = await getCloudflareContext();
 
-	// ── Auth ──────────────────────────────────────────────────────────────
-	const creds = parseBasicAuth(request.headers.get("authorization"));
-	if (
-		!creds ||
-		creds.user !== env.S3_ACCESS_KEY_ID ||
-		creds.pass !== env.S3_SECRET_ACCESS_KEY
-	) {
-		return NextResponse.json(
-			{ error: "Unauthorized" },
-			{
-				status: 401,
-				headers: { "WWW-Authenticate": 'Basic realm="Admin Panel"' },
-			},
-		);
+	// ── Auth ─────────────────────────────────────────────────────────────────────
+	if (!(await requestIsAuthorized(env, request))) {
+		return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 	}
 
 	// ── Validate ──────────────────────────────────────────────────────────

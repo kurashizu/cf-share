@@ -1,3 +1,9 @@
 S3_ACCESS_KEY_ID=__REPLACE_ME__
 S3_SECRET_ACCESS_KEY=__REPLACE_ME__
 CRON_SECRET=__REPLACE_ME__
+# Password used by the /admin login form. Pick something strong.
+ADMIN_PASSWORD=__REPLACE_ME__
+# HMAC secret for signing admin session JWTs (HS256). Use a fresh random
+# value, e.g. `openssl rand -hex 32`. Rotating this invalidates all active
+# admin sessions.
+ADMIN_JWT_SECRET=__REPLACE_ME__

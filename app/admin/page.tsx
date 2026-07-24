@@ -118,12 +118,23 @@ export default function AdminPage() {
   // Auth state
   const [authChecked, setAuthChecked] = useState(false);
 
-  // ── Auth check on mount ─────────────────────────────────────────
+  const handleLogout = useCallback(async () => {
+    try {
+      await fetch("/api/admin/logout", {
+        method: "POST",
+        credentials: "same-origin",
+      });
+    } finally {
+      window.location.replace("/admin/login");
+    }
+  }, []);
+
+  // ── Auth check on mount ────────────────────────────────────────
   useEffect(() => {
-    fetch("/api/admin/shares?page=1")
+    fetch("/api/admin/me", { credentials: "same-origin" })
       .then((r) => {
         if (r.status === 401) {
-          window.location.href = "/api/admin/challenge?redirect=/admin";
+          window.location.replace("/admin/login");
           return;
         }
         if (!r.ok) throw new Error(`Auth check failed: ${r.status}`);
@@ -144,9 +155,11 @@ export default function AdminPage() {
         if (q) params.set("q", q);
         if (all) params.set("all", "1");
 
-        const res = await fetch(`/api/admin/shares?${params}`);
+        const res = await fetch(`/api/admin/shares?${params}`, {
+          credentials: "same-origin",
+        });
         if (res.status === 401) {
-          window.location.href = "/api/admin/challenge?redirect=/admin";
+          window.location.replace("/admin/login");
           return;
         }
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -176,9 +189,11 @@ export default function AdminPage() {
         if (q) params.set("aq", q);
         if (action) params.set("aaction", action);
 
-        const res = await fetch(`/api/admin/audit?${params}`);
+        const res = await fetch(`/api/admin/audit?${params}`, {
+          credentials: "same-origin",
+        });
         if (res.status === 401) {
-          window.location.href = "/api/admin/challenge?redirect=/admin";
+          window.location.replace("/admin/login");
           return;
         }
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -207,10 +222,11 @@ export default function AdminPage() {
         `/api/admin/delete?token=${encodeURIComponent(token)}`,
         {
           method: "DELETE",
+          credentials: "same-origin",
         },
       );
       if (res.status === 401) {
-        window.location.href = "/api/admin/challenge?redirect=/admin";
+        window.location.replace("/admin/login");
         return;
       }
       const data: { success?: boolean; error?: string } = await res.json();
@@ -256,6 +272,13 @@ export default function AdminPage() {
             </a>
           </p>
         </div>
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="self-start sm:self-auto px-3 py-1.5 text-sm border border-neutral-300 dark:border-neutral-700 rounded-md text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+        >
+          Log out
+        </button>
       </div>
 
       {/* Tabs */}

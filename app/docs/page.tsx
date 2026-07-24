@@ -97,7 +97,11 @@ export default function DocsPage() {
             <tr className="border-b border-neutral-200 dark:border-neutral-800">
               <td className="py-2 pr-4"><Code>ttl</Code></td>
               <td className="py-2 pr-4">integer</td>
-              <td className="py-2">300–604800s, default 86400</td>
+              <td className="py-2">
+                Anon: 300–604800s. Admin: same range, or{" "}
+                <Code>0</Code> for “no expiry” (share lives ~100 years).
+                Default 86400 (24h).
+              </td>
             </tr>
             <tr className="border-b border-neutral-200 dark:border-neutral-800">
               <td className="py-2 pr-4"><Code>password</Code></td>
@@ -208,30 +212,70 @@ export default function DocsPage() {
           Admin
         </h2>
         <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
-          All admin endpoints require <Code>Authorization: Basic …</Code> using
-          the S3 access credentials. Admin uploads bypass{" "}
-          <em>all</em> per-IP quotas and rate limits; the per-file cap is{" "}
-          <strong>100 GB</strong> instead of 5 GB.
+          Admin endpoints are protected by a short-lived JWT set as an{" "}
+          <Code>HttpOnly</Code> cookie (<Code>cf_admin</Code>, default 8h).
+          Log in once via the web panel at <Code>/admin/login</Code>{" "}
+          (entering the <Code>ADMIN_PASSWORD</Code> secret) — the browser
+          then attaches the cookie to every same-origin request, including
+          <Code>/api/upload/init</Code> and <Code>…/complete</Code>. Admin
+          uploads bypass <em>all</em> per-IP quotas and rate limits; the
+          per-file cap is <strong>100 GB</strong> instead of 5 GB.
         </p>
-        <ul className="list-disc pl-6 text-sm text-neutral-600 dark:text-neutral-400 space-y-1 mb-4">
-          <li>
-            <Code>POST /api/upload/init</Code> + <Code>…/complete</Code> —
-            Upload with Basic auth for admin privileges
-          </li>
-          <li>
-            <Code>GET /api/admin/shares?page=&amp;q=&amp;all=1</Code> — List
-            shares with stats
-          </li>
-          <li>
-            <Code>GET /api/admin/audit?page=&amp;action=</Code> — Audit log
-          </li>
-          <li>
-            <Code>DELETE /api/admin/delete?token=X</Code> — Delete a share
-          </li>
-          <li>
-            <Code>GET /admin</Code> — Web admin panel (Shares + Audit tabs)
-          </li>
-        </ul>
+        <Table>
+          <thead>
+            <tr className="border-b border-neutral-300 dark:border-neutral-700 text-left">
+              <th className="py-2 pr-4 font-medium">Endpoint</th>
+              <th className="py-2 font-medium">Purpose</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr className="border-b border-neutral-200 dark:border-neutral-800">
+              <td className="py-2 pr-4"><Code>POST /api/admin/login</Code></td>
+              <td className="py-2">
+                Body <Code>{"{password}"}</Code>. Sets the{" "}
+                <Code>cf_admin</Code> cookie on success.
+              </td>
+            </tr>
+            <tr className="border-b border-neutral-200 dark:border-neutral-800">
+              <td className="py-2 pr-4"><Code>POST /api/admin/logout</Code></td>
+              <td className="py-2">Clears the <Code>cf_admin</Code> cookie.</td>
+            </tr>
+            <tr className="border-b border-neutral-200 dark:border-neutral-800">
+              <td className="py-2 pr-4"><Code>GET /api/admin/me</Code></td>
+              <td className="py-2">
+                Returns <Code>{"{authenticated: true}"}</Code> if the cookie
+                is valid, otherwise 401.
+              </td>
+            </tr>
+            <tr className="border-b border-neutral-200 dark:border-neutral-800">
+              <td className="py-2 pr-4">
+                <Code>POST /api/upload/init</Code> + <Code>…/complete</Code>
+              </td>
+              <td className="py-2">
+                Same as anon; with a valid admin cookie the limits are
+                lifted and <Code>ttl=0</Code> is accepted.
+              </td>
+            </tr>
+            <tr className="border-b border-neutral-200 dark:border-neutral-800">
+              <td className="py-2 pr-4"><Code>GET /api/admin/shares?page=&amp;q=&amp;all=1</Code></td>
+              <td className="py-2">List shares with stats.</td>
+            </tr>
+            <tr className="border-b border-neutral-200 dark:border-neutral-800">
+              <td className="py-2 pr-4"><Code>GET /api/admin/audit?apage=&amp;aq=&amp;aaction=</Code></td>
+              <td className="py-2">Audit log.</td>
+            </tr>
+            <tr className="border-b border-neutral-200 dark:border-neutral-800">
+              <td className="py-2 pr-4"><Code>DELETE /api/admin/delete?token=X</Code></td>
+              <td className="py-2">Delete a share.</td>
+            </tr>
+            <tr>
+              <td className="py-2 pr-4"><Code>GET /admin</Code></td>
+              <td className="py-2">
+                Web admin panel (Shares + Audit Log + Upload tabs).
+              </td>
+            </tr>
+          </tbody>
+        </Table>
 
         {/* ── Limits ─────────────────────────────────────────────────────── */}
         <Hr />
@@ -259,7 +303,10 @@ export default function DocsPage() {
             </tr>
             <tr className="border-b border-neutral-200 dark:border-neutral-800">
               <td className="py-2 pr-4">TTL range</td>
-              <td className="py-2">5 min – 7 days (default 24 h)</td>
+              <td className="py-2">
+                5 min – 7 days (default 24 h). Admin may send{" "}
+                <Code>0</Code> for “no expiry”.
+              </td>
             </tr>
             <tr className="border-b border-neutral-200 dark:border-neutral-800">
               <td className="py-2 pr-4">Per-IP daily (anon)</td>

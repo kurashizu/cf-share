@@ -15,7 +15,8 @@ Live at https://share.022025.xyz
 |--------|------|---------|
 | GET | `/` | Upload page (drag-and-drop) |
 | GET | `/docs` | API documentation |
-| GET | `/admin` | Admin panel (HTTP Basic auth) |
+| GET | `/admin` | Admin panel (JWT cookie set at `/admin/login`) |
+| GET | `/admin/login` | Admin login form |
 | GET | `/d/:token` | Download page (HTML) |
 | GET | `/api/download/:token` | 302 to presigned S3 URL |
 | POST | `/api/download/:token` | Password verification |
@@ -24,9 +25,12 @@ Live at https://share.022025.xyz
 | POST | `/api/upload/complete` | Mint share token |
 | GET | `/api/health` | Health check |
 | GET/POST | `/api/cron/cleanup` | Manual cleanup trigger |
-| GET | `/api/admin/shares` | List shares (auth) |
-| GET | `/api/admin/audit` | Audit log (auth) |
+| GET/POST | `/api/admin/shares` | List shares (auth) |
+| GET/POST | `/api/admin/audit` | Audit log (auth) |
 | DELETE | `/api/admin/delete` | Delete share (auth) |
+| POST | `/api/admin/login` | Submit password, set `cf_admin` JWT cookie |
+| POST | `/api/admin/logout` | Clear `cf_admin` cookie |
+| GET | `/api/admin/me` | Auth check (returns 401 if no/invalid cookie) |
 
 ## D1 Database
 
@@ -66,7 +70,7 @@ See `lib/share/token.ts`.
 - `components/uploader/Uploader.tsx` — Upload UI with XHR progress + speed tracking
 - `lib/s3/` — S3 client, presign, multipart, cleanup, policy
 - `lib/share/` — Token gen, password hash, D1 store
-- `lib/admin/auth.ts` — HTTP Basic auth with S3 credentials
+- `lib/admin/auth.ts` — JWT sign/verify for admin sessions (`cf_admin` cookie)
 - `custom-worker.ts` — OpenNext wrapper + cron handler
 
 ## Common Commands

@@ -27,7 +27,8 @@ never proxies file bodies.
 |--------|------|---------|
 | GET | `/` | Upload page (drag-and-drop) |
 | GET | `/docs` | API documentation for agent use |
-| GET | `/admin` | Admin panel (shares + audit log, HTTP Basic auth) |
+| GET | `/admin` | Admin panel (shares + audit log, JWT cookie) |
+| GET | `/admin/login` | Admin login form |
 | GET | `/d/:token` | Download page (with password prompt if protected) |
 | GET | `/api/download/:token` | 302 to presigned S3 URL (add `?info=1` for JSON metadata) |
 | POST | `/api/download/:token` | Verify password → return download URL |
@@ -37,16 +38,22 @@ never proxies file bodies.
 | GET/POST | `/api/admin/shares` | List shares (authenticated) |
 | GET/POST | `/api/admin/audit` | List audit log (authenticated) |
 | DELETE | `/api/admin/delete?token=X` | Delete a share (authenticated) |
-| GET | `/api/admin/challenge` | Trigger browser Basic Auth dialog |
+| GET | `/api/admin/me` | Check whether the current session is authenticated |
+| POST | `/api/admin/login` | Submit admin password, set `cf_admin` JWT cookie |
+| POST | `/api/admin/logout` | Clear the `cf_admin` cookie |
 | GET/POST | `/api/cron/cleanup` | Manual cleanup trigger (requires `CRON_SECRET`) |
 
 ## Admin Panel
 
-The admin panel at `/admin` is protected by HTTP Basic Authentication using
-your S3 credentials. It provides two tabs:
+The admin panel at `/admin` is protected by a password (`ADMIN_PASSWORD`)
+which sets a short-lived JWT (`cf_admin` HttpOnly cookie, default 8h). The
+cookie is automatically attached to every same-origin request — including
+the upload flow's `init`/`complete` calls — so admin uploads work without
+any extra client wiring. It provides three tabs:
 
 - **Shares** — browse active/expired shares, search by filename or token, delete shares
 - **Audit Log** — view all init/complete/download/delete events, filter by action type or IP
+- **Upload** — upload a new file (admin path: 100 GB cap, no per-IP / per-pool quotas, optional `ttl=0` for "no expiry")
 
 ## Development
 
@@ -77,6 +84,8 @@ npm run db:migrate:remote                  # apply database/schema.sql
 npx wrangler secret put S3_ACCESS_KEY_ID
 npx wrangler secret put S3_SECRET_ACCESS_KEY
 npx wrangler secret put CRON_SECRET
+npx wrangler secret put ADMIN_PASSWORD
+npx wrangler secret put ADMIN_JWT_SECRET   # e.g. openssl rand -hex 32
 
 # Per-deploy
 npm run deploy                             # builds + deploys
