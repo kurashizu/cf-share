@@ -1,0 +1,30 @@
+[project]
+name = "sharetube"
+version = "0.1.0"
+description = "TUI: yt-dlp → ffmpeg (VAAPI h264+aac @ 2Mbps) → share.krsz.in"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+    { name = "kurashizu" }
+]
+dependencies = [
+    "textual>=0.86",
+    "rich>=13.7",
+    "httpx>=0.27",
+    "pyperclip>=1.8",
+]
+
+[project.scripts]
+sharetube = "sharetube.__main__:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/sharetube"]
+
+# When the repository is set up as a uv workspace, the root pyproject.toml
+# in the parent directory lists this project as a workspace member. Keep
+# the manifest self-contained so `uv sync` works both from this directory
+# and from the repo root.
