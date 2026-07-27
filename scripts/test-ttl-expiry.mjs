@@ -7,7 +7,7 @@
  * 4. Verify it returns 404
  */
 
-const BASE_URL = process.env.BASE_URL || "https://cf-share.kurashizu123.workers.dev";
+const BASE_URL = process.env.BASE_URL || "https://share.krsz.in";
 
 async function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));

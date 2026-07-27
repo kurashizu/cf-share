@@ -12,11 +12,11 @@
  *   node scripts/test-multipart-upload.mjs <file-path>
  *
  * Env:
- *   BASE_URL — defaults to https://cf-share.kurashizu123.workers.dev
+ *   BASE_URL — defaults to https://share.krsz.in (see lib/config/app.ts)
  */
 
 const BASE_URL =
-  process.env.BASE_URL || "https://cf-share.kurashizu123.workers.dev";
+  process.env.BASE_URL || "https://share.krsz.in";
 const FILE_PATH = process.argv[2];
 
 if (!FILE_PATH) {
