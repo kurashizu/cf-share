@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { APP_URL, APP_HOST } from "@/lib/config/app";
 
 export const metadata: Metadata = {
   title: "API — Share",
@@ -43,10 +44,10 @@ export default function DocsPage() {
         </h1>
         <p className="text-neutral-500 dark:text-neutral-400 mb-8">
           <a
-            href="https://share.022025.xyz"
+            href={APP_URL}
             className="text-blue-600 dark:text-blue-400 hover:underline"
           >
-            share.022025.xyz
+            {APP_HOST}
           </a>
           {" · "}Upload a file via presigned S3 URL, get a short-lived 4-char
           share link. Admin uploads bypass all quotas.
@@ -342,7 +343,7 @@ export default function DocsPage() {
           Quick start (cURL)
         </h2>
         <ApiBlock>{`# 1. Init
-INIT=$(curl -fsS -X POST "https://share.022025.xyz/api/upload/init" \\
+INIT=$(curl -fsS -X POST "${APP_URL}/api/upload/init" \\
   -H "Content-Type: application/json" \\
   -d '{"filename":"photo.jpg","size":1048576,"contentType":"image/jpeg","ttl":86400}')
 URL=$(echo "$INIT" | sed -n 's/.*"url":"\\([^"]*\\)".*/\\1/p')
@@ -354,12 +355,12 @@ ETAG=$(curl -fsS -X PUT "$URL" -H "Content-Type: image/jpeg" \\
   --data-binary "@photo.jpg" -D - | tr -d '\\r' | awk 'tolower($1)=="etag:"{gsub(/"/,"",$2); print $2}')
 
 # 3. Complete
-curl -fsS -X POST "https://share.022025.xyz/api/upload/complete" \\
+curl -fsS -X POST "${APP_URL}/api/upload/complete" \\
   -H "Content-Type: application/json" \\
   -d "{\\"uploadId\\":\\"$UID\\",\\"key\\":\\"$KEY\\",\\"filename\\":\\"photo.jpg\\",\\"size\\":1048576,\\"contentType\\":\\"image/jpeg\\",\\"etag\\":\\"$ETAG\\",\\"ttl\\":86400}"
 
 # 4. Download
-curl -fsSL "https://share.022025.xyz/d/ABCD" -o downloaded-file`}</ApiBlock>
+curl -fsSL "${APP_URL}/d/ABCD" -o downloaded-file`}</ApiBlock>
 
         <div className="mt-12 text-center text-sm text-neutral-500 dark:text-neutral-500">
           <a

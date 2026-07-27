@@ -4,7 +4,7 @@ A minimal "share a file" web app on Cloudflare Workers + OpenNext + Next.js.
 Files go directly to S3-compatible storage via presigned URLs — the Worker
 never proxies file bodies.
 
-- **Production URL**: https://share.022025.xyz
+- **Production URL**: https://share.krsz.in (see `lib/config/app.ts`)
 - **Worker URL**: https://cf-share.kurashizu123.workers.dev
 - **Stack**: Next.js 16 + React 19 + @opennextjs/cloudflare + Cloudflare D1
 - **S3 endpoint**: https://s3api.022025.xyz (configured via `S3_ENDPOINT`)
@@ -96,6 +96,10 @@ npm run deploy                             # builds + deploys
 ```
 CNAME  share  →  cf-share.kurashizu123.workers.dev  (proxied)
 ```
+
+The authoritative hostname is `share.krsz.in` (see `lib/config/app.ts`
+→ `APP_URL`). Update the DNS record above and the Cloudflare Worker's
+"Custom Domains" setting when changing it.
 
 ## Architecture
 

@@ -22,9 +22,11 @@ import urllib.error
 from pathlib import Path
 from urllib.parse import urlparse
 
+from _config import APP_URL, APP_HOST
+
 UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
-BASE_HOST = "share.022025.xyz"
-BASE = f"https://{BASE_HOST}"
+BASE_HOST = APP_HOST
+BASE = APP_URL
 PART_SIZE = 50 * 1024 * 1024
 FILE = Path.home() / "Downloads/sql-finetune-finetuned-gguf-1.0.0.tar"
 STATE_FILE = Path("/tmp/cf-share-test/resume_e2e_state.json")

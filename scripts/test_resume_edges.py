@@ -5,8 +5,10 @@ import sys
 import urllib.request
 import urllib.error
 
+from _config import APP_URL
+
 UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
-BASE = "https://share.022025.xyz"
+BASE = APP_URL
 
 
 def req(url, *, method="GET", body=None, headers=None):

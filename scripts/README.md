@@ -1,9 +1,9 @@
 # Ad-hoc test scripts
 
-These are manual end-to-end test scripts for the Worker API at
-`https://share.022025.xyz`. They are not part of the build — they're
-for poking the deployment from the terminal when manual verification
-is needed.
+These are manual end-to-end test scripts for the Worker API at the
+URL defined in `lib/config/app.ts` (`APP_URL`). They are not part of
+the build — they're for poking the deployment from the terminal when
+manual verification is needed.
 
 ## Prerequisites
 

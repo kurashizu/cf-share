@@ -7,7 +7,7 @@ Agent orientation for `cf-share`.
 Minimal file-sharing web app. Visitors upload a single file and receive a
 short-lived download link. No login required.
 
-Live at https://share.022025.xyz
+Live at https://share.krsz.in (see `lib/config/app.ts` for the authoritative value)
 
 ## Routes
 
@@ -44,7 +44,7 @@ Schema in `database/schema.sql`.
 
 ## S3 Storage
 
-Single bucket (`cf-share`) on `s3api.022025.xyz`.
+Single bucket (`cf-share`) on `s3api.022025.xyz` (see `lib/config/app.ts` → `S3_PUBLIC_ENDPOINT`).
 Key layout: `uploads/{YYYY}/{MM}/{DD}/{share-token}/{filename}`
 
 All uploads go direct to S3 via presigned URL — Worker never sees file bytes.

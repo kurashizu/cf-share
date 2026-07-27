@@ -28,9 +28,9 @@ UA = (
     "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
 )
 
-BASE = os.environ.get("CF_SHARE_BASE", "https://share.022025.xyz")
-ADMIN_USER = os.environ.get("CF_SHARE_ADMIN_USER", "<REDACTED>")
-ADMIN_PASS = os.environ.get("CF_SHARE_ADMIN_PASS", "<REDACTED>")
+BASE = os.environ.get("CF_SHARE_BASE", "https://share.krsz.in")
+ADMIN_USER = os.environ["CF_SHARE_ADMIN_USER"]
+ADMIN_PASS = os.environ["CF_SHARE_ADMIN_PASS"]
 
 PART_SIZE = 50 * 1024 * 1024  # 50 MB
 FILE = Path.home() / "Downloads/sql-finetune-finetuned-gguf-1.0.0.tar"

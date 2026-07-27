@@ -28,9 +28,9 @@ UA = (
     "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
 )
 
-BASE = os.environ.get("CF_SHARE_BASE", "https://share.022025.xyz")
-ADMIN_USER = os.environ.get("CF_SHARE_ADMIN_USER", "<REDACTED>")
-ADMIN_PASS = os.environ.get("CF_SHARE_ADMIN_PASS", "<REDACTED>")
+BASE = os.environ.get("CF_SHARE_BASE", "https://share.krsz.in")
+ADMIN_USER = os.environ["CF_SHARE_ADMIN_USER"]
+ADMIN_PASS = os.environ["CF_SHARE_ADMIN_PASS"]
 
 # 6 GB (above 5 GB anon cap) and 4 GB (under).
 SIZE_BIG = 6 * 1024 * 1024 * 1024

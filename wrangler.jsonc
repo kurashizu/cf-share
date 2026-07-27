@@ -83,7 +83,10 @@
   "triggers": {
     "crons": ["*/5 * * * *"]
   },
-  // Vars (non-sensitive)
+  // Vars (non-sensitive).
+  // NOTE: S3_ENDPOINT must match `lib/config/app.ts` → S3_PUBLIC_ENDPOINT.
+  // The public app URL (share.krsz.in) lives in `lib/config/app.ts` because
+  // both the Worker and the Next.js frontend need to agree on it.
   "vars": {
     "S3_ENDPOINT": "https://s3api.022025.xyz",
     "S3_REGION": "auto",
