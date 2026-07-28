@@ -99,7 +99,7 @@
     "MAX_DAILY_COUNT_PER_IP": "100",
     "MAX_TOTAL_BYTES": "107374182400",
     "UPLOAD_URL_TTL": "3600",
-    "DOWNLOAD_URL_TTL": "300",
+    "DOWNLOAD_URL_TTL": "3600",
     "ADMIN_JWT_TTL_SECONDS": "28800",
     // Cleanup cron tunables (consumed by lib/s3/cleanup.ts)
     "CLEANUP_BATCH_SIZE": "500",
