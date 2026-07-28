@@ -7,7 +7,7 @@ export default function Home() {
         <img
           src="/favicon.svg"
           alt="KRSZ Share"
-          className="mx-auto mb-4 h-12 w-12"
+          className="mx-auto mb-3 h-16 w-16"
         />
         <h1 className="text-4xl font-bold tracking-tight text-neutral-900 dark:text-neutral-50">
           KRSZ Share
