@@ -4,6 +4,11 @@ export default function Home() {
   return (
     <main className="min-h-screen flex flex-col items-center bg-neutral-50 dark:bg-neutral-950 p-6">
       <div className="w-full max-w-xl text-center mt-12 mb-8">
+        <img
+          src="/favicon.svg"
+          alt="KRSZ Share"
+          className="mx-auto mb-4 h-12 w-12"
+        />
         <h1 className="text-4xl font-bold tracking-tight text-neutral-900 dark:text-neutral-50">
           KRSZ Share
         </h1>
