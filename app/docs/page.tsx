@@ -188,12 +188,12 @@ export default function DocsPage() {
         </p>
 
         <h3 className="text-xl font-semibold mt-6 mb-3 text-neutral-800 dark:text-neutral-100">
-          <Code>GET /api/download/:token</Code> — Presigned S3 URL
+          <Code>GET /api/download/:token</Code> — Stream file from S3
         </h3>
         <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-2">
-          302 redirect to a presigned S3 GET URL (valid 300s). Append{" "}
-          <Code>?info=1</Code> for JSON metadata or <Code>?password=X</Code>{" "}
-          for protected shares.
+          Streams the object bytes through the Worker via a TransformStream
+          pipe (supports byte-range requests). Append <Code>?info=1</Code> for
+          JSON metadata or <Code>?password=X</Code> for protected shares.
         </p>
 
         <h3 className="text-xl font-semibold mt-6 mb-3 text-neutral-800 dark:text-neutral-100">

@@ -32,11 +32,15 @@ function passwordRequiredResponse(): Response {
  * GET /api/download/:token
  *
  *   ?info=1   → return share metadata as JSON (includes has_password).
- *   default    → 302 to a presigned S3 GET URL (if no password).
- *   ?password= → verify password and redirect (if password-protected).
+ *   default    → stream the file bytes from S3 through the Worker (if no password).
+ *   ?password= → verify password and stream (if password-protected).
  *
  * Password-protected shares require a password via query parameter.
  * Missing / expired / wrong password all return 404/401.
+ *
+ * The proxied response body is piped through an explicit TransformStream
+ * (returning `upstream.body` directly truncates the stream in OpenNext's
+ * nodejs runtime — see the comment near the pipe).
  */
 export async function GET(
   request: Request,
@@ -116,7 +120,7 @@ export async function GET(
     }
   }
 
-  // Increment + redirect
+  // Increment + redirect.
   await recordDownload(env, token);
 
   const client = createS3Client(env);
@@ -132,7 +136,12 @@ export async function GET(
   // a redirect. Forward byte-range requests so download managers and paused
   // downloads continue to work correctly.
   const upstreamHeaders = new Headers();
-  for (const header of ["range", "if-range", "if-none-match", "if-modified-since"]) {
+  for (const header of [
+    "range",
+    "if-range",
+    "if-none-match",
+    "if-modified-since",
+  ]) {
     const value = request.headers.get(header);
     if (value) upstreamHeaders.set(header, value);
   }
@@ -170,14 +179,36 @@ export async function GET(
   await audit(env, {
     ip,
     action: "download",
+    shareToken: token,
     status: upstream.status,
     detail: {
       ...(hasPassword ? { password_protected: true } : {}),
       proxy: true,
+      transform: true,
     },
   });
 
-  return new Response(upstream.body, {
+  // Pipe the upstream body through an explicit TransformStream. Passing
+  // `upstream.body` straight to `new Response(upstream.body, ...)` truncates
+  // the response in OpenNext's nodejs runtime (same URL returns 0 / partial
+  // / full bytes across requests). Buffering via arrayBuffer() is reliable
+  // but OOMs on files >~100 MB; an explicit pipe keeps it streaming with no
+  // memory ceiling while still delivering every byte.
+  const { readable, writable } = new TransformStream();
+  upstream.body!
+    .pipeTo(writable)
+    .catch((err) => {
+      console.error("[download] upstream pipe failed", {
+        token,
+        err: err instanceof Error ? err.message : String(err),
+      });
+      try {
+        writable.abort(err);
+      } catch {
+        /* already closed */
+      }
+    });
+  return new Response(readable, {
     status: upstream.status,
     headers: responseHeaders,
   });

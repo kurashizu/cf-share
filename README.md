@@ -1,8 +1,9 @@
 # cf-share
 
 A minimal "share a file" web app on Cloudflare Workers + OpenNext + Next.js.
-Files go directly to S3-compatible storage via presigned URLs — the Worker
-never proxies file bodies.
+Files are **uploaded** directly to S3-compatible storage via presigned URLs —
+the Worker never sees upload bytes. **Downloads** are streamed through the
+Worker via a `TransformStream` proxy (see `app/api/download/[token]/route.ts`).
 
 - **Production URL**: https://share.krsz.in (see `lib/config/app.ts`)
 - **Worker URL**: https://cf-share.kurashizu123.workers.dev
@@ -30,7 +31,7 @@ never proxies file bodies.
 | GET | `/admin` | Admin panel (shares + audit log, JWT cookie) |
 | GET | `/admin/login` | Admin login form |
 | GET | `/d/:token` | Download page (with password prompt if protected) |
-| GET | `/api/download/:token` | 302 to presigned S3 URL (add `?info=1` for JSON metadata) |
+| GET | `/api/download/:token` | Stream file bytes from S3 through the Worker (TransformStream pipe, supports Range); add `?info=1` for JSON metadata |
 | POST | `/api/download/:token` | Verify password → return download URL |
 | POST | `/api/upload/init` | Reserve a presigned PUT URL (single or multipart) |
 | POST | `/api/upload/complete` | Mint a share token |
@@ -108,10 +109,24 @@ Browser ──PUT──► S3 (presigned URL)
   │
   ├── POST /api/upload/init     ──► Worker ──► D1 (quota check)
   ├── POST /api/upload/complete ──► Worker ──► D1 (mint token)
-  └── GET  /api/download/:token ──► Worker ──► D1 (lookup) ──► 302 to presigned S3 GET
+  └── GET  /api/download/:token ──► Worker ──► D1 (lookup) ──► presigned S3 GET ──► TransformStream ──► client
 
 Cleanup: cron every 30 min ──► Worker ──► D1 (find expired) ──► S3 (delete) ──► D1 (remove row)
 ```
+
+## Gotchas
+
+- **Download proxy must pipe through a `TransformStream`.** Returning
+  `new Response(upstream.body, ...)` directly truncates the stream randomly
+  under OpenNext's `nodejs` runtime (same URL returns 0 / partial / full
+  bytes across requests). Pipe `upstream.body.pipeTo(writable)` and return the
+  `readable` side instead. See `app/api/download/[token]/route.ts`.
+- **`runtime = "edge"` is NOT usable for route handlers here.** The download
+  route must stay `runtime = "nodejs"`. With `edge`, OpenNext `1.19.9` fails
+  to load the app-route component (`interopDefault` / `findPageComponentsImpl`
+  → 500 "Internal Server Error"), because edge routes are compiled into an
+  edge-wrapper module without the `.default` export the Next server loader
+  expects.
 
 ## See Also
 

@@ -18,7 +18,7 @@ Live at https://share.krsz.in (see `lib/config/app.ts` for the authoritative val
 | GET | `/admin` | Admin panel (JWT cookie set at `/admin/login`) |
 | GET | `/admin/login` | Admin login form |
 | GET | `/d/:token` | Download page (HTML) |
-| GET | `/api/download/:token` | 302 to presigned S3 URL |
+| GET | `/api/download/:token` | Stream file bytes from S3 through the Worker (TransformStream pipe, supports Range) |
 | POST | `/api/download/:token` | Password verification |
 | POST | `/api/upload/init` | Reserve presigned PUT URL (admin auth skips all quotas) |
 | POST | `/api/upload/resume` | Re-sign missing parts for interrupted multipart upload |
@@ -47,8 +47,13 @@ Schema in `database/schema.sql`.
 Single bucket (`cf-share`) on `s3api.022025.xyz` (see `lib/config/app.ts` → `S3_PUBLIC_ENDPOINT`).
 Key layout: `uploads/{YYYY}/{MM}/{DD}/{share-token}/{filename}`
 
-All uploads go direct to S3 via presigned URL — Worker never sees file bytes.
-Multipart upload used for files > 90 MB (50 MB parts).
+All uploads go direct to S3 via presigned URL — Worker never sees upload
+bytes. Multipart upload used for files > 90 MB (50 MB parts).
+
+Downloads are proxied through the Worker: it looks up the share in D1,
+presigns an S3 GET, fetches S3, and pipes the body back via a
+`TransformStream` (must NOT be returned as `new Response(upstream.body)`
+directly — that truncates under OpenNext's nodejs runtime).
 
 ## Limits
 
@@ -89,3 +94,8 @@ npm run db:migrate:remote
 - All UI in English, TypeScript strict mode, Tailwind 4.
 - Server-side validation on every API route; never trust the client.
 - All S3 interactions go through `lib/s3/*` — no scattered `S3Client` instances.
+- Download proxy: keep `runtime = "nodejs"` and pipe the upstream body through
+  a `TransformStream` (`upstream.body.pipeTo(writable)` → return `readable`).
+  Do NOT return `upstream.body` directly, and do NOT switch the route to
+  `runtime = "edge"` (OpenNext 1.19.9 cannot load edge app routes → 500).
+  See `app/api/download/[token]/route.ts` and README "Gotchas".
