@@ -128,15 +128,59 @@ export async function GET(
     filename: share.filename,
   });
 
+  // Stream the object through the Worker instead of exposing the S3 URL via
+  // a redirect. Forward byte-range requests so download managers and paused
+  // downloads continue to work correctly.
+  const upstreamHeaders = new Headers();
+  for (const header of ["range", "if-range", "if-none-match", "if-modified-since"]) {
+    const value = request.headers.get(header);
+    if (value) upstreamHeaders.set(header, value);
+  }
+
+  const upstream = await fetch(dlUrl, { headers: upstreamHeaders });
+  if (!upstream.ok && upstream.status !== 206 && upstream.status !== 304) {
+    console.error("[download] S3 proxy request failed", {
+      token,
+      status: upstream.status,
+    });
+    return NextResponse.json(
+      { error: "Download failed" },
+      { status: upstream.status >= 400 ? upstream.status : 502 },
+    );
+  }
+
+  const responseHeaders = new Headers();
+  for (const header of [
+    "content-type",
+    "content-length",
+    "content-range",
+    "accept-ranges",
+    "etag",
+    "last-modified",
+  ]) {
+    const value = upstream.headers.get(header);
+    if (value) responseHeaders.set(header, value);
+  }
+  responseHeaders.set(
+    "Content-Disposition",
+    `attachment; filename="${share.filename.replace(/["\\r\\n]/g, "")}"`,
+  );
+  responseHeaders.set("Cache-Control", "private, no-store");
+
   await audit(env, {
     ip,
     action: "download",
-    shareToken: token,
-    status: 302,
-    detail: hasPassword ? { password_protected: true } : undefined,
+    status: upstream.status,
+    detail: {
+      ...(hasPassword ? { password_protected: true } : {}),
+      proxy: true,
+    },
   });
 
-  return Response.redirect(dlUrl, 302);
+  return new Response(upstream.body, {
+    status: upstream.status,
+    headers: responseHeaders,
+  });
 }
 
 /**
