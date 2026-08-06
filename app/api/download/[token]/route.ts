@@ -38,9 +38,10 @@ function passwordRequiredResponse(): Response {
  * Password-protected shares require a password via query parameter.
  * Missing / expired / wrong password all return 404/401.
  *
- * The proxied response body is piped through an explicit TransformStream
- * (returning `upstream.body` directly truncates the stream in OpenNext's
- * nodejs runtime — see the comment near the pipe).
+ * NOTE: streaming GET /api/download/:token is handled natively in
+ * `custom-worker.ts` (this Next route's response would be truncated by the
+ * OpenNext node-server pipeline). This GET handler is an unreachable 302
+ * fallback; POST /api/download/:token runs here as usual.
  */
 export async function GET(
   request: Request,
@@ -132,86 +133,19 @@ export async function GET(
     filename: share.filename,
   });
 
-  // Stream the object through the Worker instead of exposing the S3 URL via
-  // a redirect. Forward byte-range requests so download managers and paused
-  // downloads continue to work correctly.
-  const upstreamHeaders = new Headers();
-  for (const header of [
-    "range",
-    "if-range",
-    "if-none-match",
-    "if-modified-since",
-  ]) {
-    const value = request.headers.get(header);
-    if (value) upstreamHeaders.set(header, value);
-  }
-
-  const upstream = await fetch(dlUrl, { headers: upstreamHeaders });
-  if (!upstream.ok && upstream.status !== 206 && upstream.status !== 304) {
-    console.error("[download] S3 proxy request failed", {
-      token,
-      status: upstream.status,
-    });
-    return NextResponse.json(
-      { error: "Download failed" },
-      { status: upstream.status >= 400 ? upstream.status : 502 },
-    );
-  }
-
-  const responseHeaders = new Headers();
-  for (const header of [
-    "content-type",
-    "content-length",
-    "content-range",
-    "accept-ranges",
-    "etag",
-    "last-modified",
-  ]) {
-    const value = upstream.headers.get(header);
-    if (value) responseHeaders.set(header, value);
-  }
-  responseHeaders.set(
-    "Content-Disposition",
-    `attachment; filename="${share.filename.replace(/["\\r\\n]/g, "")}"`,
-  );
-  responseHeaders.set("Cache-Control", "private, no-store");
-
   await audit(env, {
     ip,
     action: "download",
     shareToken: token,
-    status: upstream.status,
-    detail: {
-      ...(hasPassword ? { password_protected: true } : {}),
-      proxy: true,
-      transform: true,
-    },
+    status: 302,
+    detail: hasPassword ? { password_protected: true } : undefined,
   });
 
-  // Pipe the upstream body through an explicit TransformStream. Passing
-  // `upstream.body` straight to `new Response(upstream.body, ...)` truncates
-  // the response in OpenNext's nodejs runtime (same URL returns 0 / partial
-  // / full bytes across requests). Buffering via arrayBuffer() is reliable
-  // but OOMs on files >~100 MB; an explicit pipe keeps it streaming with no
-  // memory ceiling while still delivering every byte.
-  const { readable, writable } = new TransformStream();
-  upstream.body!
-    .pipeTo(writable)
-    .catch((err) => {
-      console.error("[download] upstream pipe failed", {
-        token,
-        err: err instanceof Error ? err.message : String(err),
-      });
-      try {
-        writable.abort(err);
-      } catch {
-        /* already closed */
-      }
-    });
-  return new Response(readable, {
-    status: upstream.status,
-    headers: responseHeaders,
-  });
+  // NOTE: this handler normally never runs — GET /api/download/:token is
+  // intercepted and streamed natively in `custom-worker.ts` (the Next-node
+  // server pipeline truncates proxied bodies). Keep this as a safe 302
+  // fallback in case the worker-level interception is ever removed.
+  return Response.redirect(dlUrl, 302);
 }
 
 /**

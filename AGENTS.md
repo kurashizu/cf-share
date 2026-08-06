@@ -18,7 +18,7 @@ Live at https://share.krsz.in (see `lib/config/app.ts` for the authoritative val
 | GET | `/admin` | Admin panel (JWT cookie set at `/admin/login`) |
 | GET | `/admin/login` | Admin login form |
 | GET | `/d/:token` | Download page (HTML) |
-| GET | `/api/download/:token` | Stream file bytes from S3 through the Worker (TransformStream pipe, supports Range) |
+| GET | `/api/download/:token` | Stream file bytes from S3 (native worker proxy in `custom-worker.ts`, supports Range) |
 | POST | `/api/download/:token` | Password verification |
 | POST | `/api/upload/init` | Reserve presigned PUT URL (admin auth skips all quotas) |
 | POST | `/api/upload/resume` | Re-sign missing parts for interrupted multipart upload |
@@ -50,10 +50,11 @@ Key layout: `uploads/{YYYY}/{MM}/{DD}/{share-token}/{filename}`
 All uploads go direct to S3 via presigned URL — Worker never sees upload
 bytes. Multipart upload used for files > 90 MB (50 MB parts).
 
-Downloads are proxied through the Worker: it looks up the share in D1,
-presigns an S3 GET, fetches S3, and pipes the body back via a
-`TransformStream` (must NOT be returned as `new Response(upstream.body)`
-directly — that truncates under OpenNext's nodejs runtime).
+Downloads are proxied **natively in `custom-worker.ts`** (`handleDownloadGet`):
+it looks up the share in D1, presigns an S3 GET, fetches S3, and streams the
+body back with `new Response(upstream.body)`. Do NOT move this into the Next
+route handler — the OpenNext node-server pipeline drops Content-Length and
+truncates the stream.
 
 ## Limits
 
@@ -94,8 +95,8 @@ npm run db:migrate:remote
 - All UI in English, TypeScript strict mode, Tailwind 4.
 - Server-side validation on every API route; never trust the client.
 - All S3 interactions go through `lib/s3/*` — no scattered `S3Client` instances.
-- Download proxy: keep `runtime = "nodejs"` and pipe the upstream body through
-  a `TransformStream` (`upstream.body.pipeTo(writable)` → return `readable`).
-  Do NOT return `upstream.body` directly, and do NOT switch the route to
-  `runtime = "edge"` (OpenNext 1.19.9 cannot load edge app routes → 500).
-  See `app/api/download/[token]/route.ts` and README "Gotchas".
+- Downloading: the proxy lives in `custom-worker.ts` (`handleDownloadGet`,
+  native fetch → `new Response(upstream.body)`). Keep it there — the Next
+  route `app/api/download/[token]/route.ts` GET is just a `302` fallback and
+  must not proxy (Next node-server truncates). Keep it `runtime = "nodejs"`
+  (edge app routes fail to load in OpenNext 1.19.9 → 500). See README "Gotchas".

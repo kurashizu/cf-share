@@ -2,8 +2,8 @@
 
 A minimal "share a file" web app on Cloudflare Workers + OpenNext + Next.js.
 Files are **uploaded** directly to S3-compatible storage via presigned URLs —
-the Worker never sees upload bytes. **Downloads** are streamed through the
-Worker via a `TransformStream` proxy (see `app/api/download/[token]/route.ts`).
+the Worker never sees upload bytes. **Downloads** are streamed natively in the
+worker (`custom-worker.ts`), not via a Next.js route handler.
 
 - **Production URL**: https://share.krsz.in (see `lib/config/app.ts`)
 - **Worker URL**: https://cf-share.kurashizu123.workers.dev
@@ -31,7 +31,7 @@ Worker via a `TransformStream` proxy (see `app/api/download/[token]/route.ts`).
 | GET | `/admin` | Admin panel (shares + audit log, JWT cookie) |
 | GET | `/admin/login` | Admin login form |
 | GET | `/d/:token` | Download page (with password prompt if protected) |
-| GET | `/api/download/:token` | Stream file bytes from S3 through the Worker (TransformStream pipe, supports Range); add `?info=1` for JSON metadata |
+| GET | `/api/download/:token` | Stream file bytes from S3 (native worker proxy in `custom-worker.ts`, supports Range); add `?info=1` for JSON metadata |
 | POST | `/api/download/:token` | Verify password → return download URL |
 | POST | `/api/upload/init` | Reserve a presigned PUT URL (single or multipart) |
 | POST | `/api/upload/complete` | Mint a share token |
@@ -109,24 +109,30 @@ Browser ──PUT──► S3 (presigned URL)
   │
   ├── POST /api/upload/init     ──► Worker ──► D1 (quota check)
   ├── POST /api/upload/complete ──► Worker ──► D1 (mint token)
-  └── GET  /api/download/:token ──► Worker ──► D1 (lookup) ──► presigned S3 GET ──► TransformStream ──► client
+  └── GET  /api/download/:token ──► Worker (custom-worker.ts, native) ──► D1 (lookup) ──► presigned S3 GET ──► stream to client
 
 Cleanup: cron every 30 min ──► Worker ──► D1 (find expired) ──► S3 (delete) ──► D1 (remove row)
 ```
 
 ## Gotchas
 
-- **Download proxy must pipe through a `TransformStream`.** Returning
-  `new Response(upstream.body, ...)` directly truncates the stream randomly
-  under OpenNext's `nodejs` runtime (same URL returns 0 / partial / full
-  bytes across requests). Pipe `upstream.body.pipeTo(writable)` and return the
-  `readable` side instead. See `app/api/download/[token]/route.ts`.
+- **Downloads must be streamed at the native Worker layer, not in a Next.js
+  route handler.** The download GET proxy lives in `custom-worker.ts`
+  (`handleDownloadGet`), which fetches S3 and returns `new Response(upstream.body)`
+  directly. If you instead proxy inside `app/api/download/[token]/route.ts`, the
+  response travels through OpenNext's Next-node-server pipeline — it drops the
+  `Content-Length` and truncates the HTTP/2 stream randomly (same URL returns 0
+  / partial / full bytes) regardless of how the body is built (direct,
+  TransformStream, or arrayBuffer). The Next route GET is kept only as a
+  `Response.redirect(dlUrl, 302)` fallback (which works, but bypasses the proxy).
 - **`runtime = "edge"` is NOT usable for route handlers here.** The download
   route must stay `runtime = "nodejs"`. With `edge`, OpenNext `1.19.9` fails
   to load the app-route component (`interopDefault` / `findPageComponentsImpl`
-  → 500 "Internal Server Error"), because edge routes are compiled into an
-  edge-wrapper module without the `.default` export the Next server loader
-  expects.
+  → 500 "Internal Server Error").
+- **Verifying changes:** direct-S3 (presigned) downloads are 100% reliable;
+  any regressions in the proxy show up as < expected byte count. Loop on a
+  known-good share and require the response to keep `Content-Length` + full byte
+  count every time.
 
 ## See Also
 
