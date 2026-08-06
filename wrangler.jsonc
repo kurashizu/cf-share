@@ -1,28 +1,29 @@
 /**
  * For more details on how to configure Wrangler, refer to:
  * https://developers.cloudflare.com/workers/wrangler/configuration/
+ *
+ * NOTE: `main` here is the adapter-cloudflare BUILD TARGET (where SvelteKit's
+ * `vite build` writes the generated fetch-only worker). To deploy the worker
+ * WITH the cron `scheduled` handler, run:
+ *
+ *   vite build && wrangler deploy custom-worker.ts
+ *
+ * The positional entry (`custom-worker.ts`) overrides `main`, imports the
+ * generated worker, and adds the `scheduled` handler (see custom-worker.ts).
+ * `assets.directory`/`binding` are read from this config at deploy time.
  */
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "cf-share",
-  // Custom wrapper that re-exports OpenNext's fetch and adds a scheduled
-  // handler for the daily cleanup cron. See custom-worker.ts.
-  "main": "./custom-worker.ts",
+  // Adapter build target (SvelteKit `/api/download/:token` GET streams the
+  // file natively at the Worker layer — no OpenNext node-server bridge).
+  "main": "./build/worker.js",
   "compatibility_date": "2026-07-09",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "assets": {
     "binding": "ASSETS",
-    "directory": ".open-next/assets",
+    "directory": "./build/assets",
   },
-  "images": {
-    "binding": "IMAGES",
-  },
-  "services": [
-    {
-      "binding": "WORKER_SELF_REFERENCE",
-      "service": "cf-share",
-    },
-  ],
   // D1 — stores shares / upload_quota / audit_log
   // Create via: npx wrangler d1 create cf-share-db
   // Then paste the returned database_id below.
@@ -35,8 +36,6 @@
   ],
   // Rate limits — cf-share specific.
   // Wrangler only allows `period` = 10s or 60s for built-in rate limits.
-  // Long-window quotas (hourly lookups, daily totals) are enforced via
-  // D1 in lib/rate-limit/quota.ts (M1).
   "ratelimits": [
     {
       "name": "UPLOAD_INIT_LIMIT",
@@ -79,14 +78,13 @@
       },
     },
   ],
-  // Triggers — daily 03:00 UTC cleanup of expired shares + S3 objects
+  // Triggers — cleanup cron. The `scheduled` handler lives in `custom-worker.ts`
+  // (see that file's doc comment). Runs every 5 minutes.
   "triggers": {
     "crons": ["*/5 * * * *"]
   },
   // Vars (non-sensitive).
   // NOTE: S3_ENDPOINT must match `lib/config/app.ts` → S3_PUBLIC_ENDPOINT.
-  // The public app URL (share.krsz.in) lives in `lib/config/app.ts` because
-  // both the Worker and the Next.js frontend need to agree on it.
   "vars": {
     "S3_ENDPOINT": "https://s3api.022025.xyz",
     "S3_REGION": "auto",
@@ -113,9 +111,6 @@
   //   CRON_SECRET            — required for /api/cron/cleanup HTTP trigger
   //   ADMIN_PASSWORD         — password for the /admin panel login form
   //   ADMIN_JWT_SECRET       — HMAC secret for signing the admin session JWT
-  //
-  // Vars below are non-secret defaults (committed to git):
-  //   ADMIN_JWT_TTL_SECONDS  — JWT lifetime (default 28800 = 8 hours)
   "observability": {
     "enabled": true,
     "head_sampling_rate": 1,

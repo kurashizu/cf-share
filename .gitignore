@@ -59,3 +59,11 @@ __pycache__/
 utils/**/.venv/
 utils/**/__pycache__/
 utils/**/*.pyc
+
+# SvelteKit
+.svelte-kit
+/build
+
+# Next.js (removed in SvelteKit migration)
+/.next/
+/out/

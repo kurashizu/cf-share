@@ -1,3 +1,7 @@
+// DOM polyfills for the AWS SDK must run before any S3Client is constructed.
+// Order matters: this import side-effect installs DOMParser/Node onto globalThis.
+import "./polyfill";
+
 import { S3Client } from "@aws-sdk/client-s3";
 
 /**

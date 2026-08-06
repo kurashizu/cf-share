@@ -1,13 +1,16 @@
 # cf-share
 
-A minimal "share a file" web app on Cloudflare Workers + OpenNext + Next.js.
+A minimal "share a file" web app on Cloudflare Workers + **SvelteKit**.
 Files are **uploaded** directly to S3-compatible storage via presigned URLs —
 the Worker never sees upload bytes. **Downloads** are streamed natively in the
-worker (`custom-worker.ts`), not via a Next.js route handler.
+Worker — the SvelteKit server compiles straight to a Cloudflare Worker via
+`@sveltejs/adapter-cloudflare`, so there is no intermediate node-server bridge
+and the streaming proxy is the plain, reliable Workers pattern.
 
 - **Production URL**: https://share.krsz.in (see `lib/config/app.ts`)
 - **Worker URL**: https://cf-share.kurashizu123.workers.dev
-- **Stack**: Next.js 16 + React 19 + @opennextjs/cloudflare + Cloudflare D1
+- **Stack**: SvelteKit 5 + Vite + `@sveltejs/adapter-cloudflare` + Cloudflare D1
+  (previous stack was Next.js 16 + OpenNext; migrated summer 2025)
 - **S3 endpoint**: https://s3api.022025.xyz (configured via `S3_ENDPOINT`)
 
 ## Limits
@@ -24,25 +27,26 @@ worker (`custom-worker.ts`), not via a Next.js route handler.
 
 ## Routes
 
-| Method | Path | Purpose |
-|--------|------|---------|
-| GET | `/` | Upload page (drag-and-drop) |
-| GET | `/docs` | API documentation for agent use |
-| GET | `/admin` | Admin panel (shares + audit log, JWT cookie) |
-| GET | `/admin/login` | Admin login form |
-| GET | `/d/:token` | Download page (with password prompt if protected) |
-| GET | `/api/download/:token` | Stream file bytes from S3 (native worker proxy in `custom-worker.ts`, supports Range); add `?info=1` for JSON metadata |
-| POST | `/api/download/:token` | Verify password → return download URL |
-| POST | `/api/upload/init` | Reserve a presigned PUT URL (single or multipart) |
-| POST | `/api/upload/complete` | Mint a share token |
-| GET | `/api/health` | `{ status, db, s3, limits }` |
-| GET/POST | `/api/admin/shares` | List shares (authenticated) |
-| GET/POST | `/api/admin/audit` | List audit log (authenticated) |
-| DELETE | `/api/admin/delete?token=X` | Delete a share (authenticated) |
-| GET | `/api/admin/me` | Check whether the current session is authenticated |
-| POST | `/api/admin/login` | Submit admin password, set `cf_admin` JWT cookie |
-| POST | `/api/admin/logout` | Clear the `cf_admin` cookie |
-| GET/POST | `/api/cron/cleanup` | Manual cleanup trigger (requires `CRON_SECRET`) |
+| Method | Path | Source | Purpose |
+|--------|------|--------|---------|
+| GET | `/` | `src/routes/+page.svelte` | Upload page (drag-and-drop) |
+| GET | `/docs` | `src/routes/docs/+page.svelte` | API documentation |
+| GET | `/admin` | `src/routes/admin/+page.svelte` | Admin panel (shares + audit log, JWT cookie) |
+| GET | `/admin/login` | `src/routes/admin/login/+page.svelte` | Admin login form |
+| GET | `/d/:token` | `src/routes/d/[token]/` | Download page (password prompt if protected) |
+| GET | `/api/download/:token` | `src/routes/api/download/[token]/+server.ts` | Stream file bytes from S3 natively (supports Range); `?info=1` for JSON metadata |
+| POST | `/api/download/:token` | same | Verify password → return download URL |
+| POST | `/api/upload/init` | `+server.ts` | Reserve a presigned PUT URL (single or multipart) |
+| POST | `/api/upload/resume` | `+server.ts` | Re-sign missing multipart parts |
+| POST | `/api/upload/complete` | `+server.ts` | Mint a share token |
+| GET | `/api/health` | `+server.ts` | `{ status, db, s3, limits }` |
+| GET/POST | `/api/admin/shares` | `+server.ts` | List shares (authenticated) |
+| GET/POST | `/api/admin/audit` | `+server.ts` | List audit log (authenticated) |
+| DELETE | `/api/admin/delete?token=X` | `+server.ts` | Delete a share (authenticated) |
+| GET | `/api/admin/me` | `+server.ts` | Check whether the current session is authenticated |
+| POST | `/api/admin/login` | `+server.ts` | Submit admin password, set `cf_admin` JWT cookie |
+| POST | `/api/admin/logout` | `+server.ts` | Clear the `cf_admin` cookie |
+| GET/POST | `/api/cron/cleanup` | `+server.ts` | Manual cleanup trigger (requires `CRON_SECRET`) |
 
 ## Admin Panel
 
@@ -59,12 +63,16 @@ any extra client wiring. It provides three tabs:
 ## Development
 
 ```bash
-cp .dev.vars.example .dev.vars   # fill S3_* values + CRON_SECRET
-npm ci --legacy-peer-deps
-npm run dev                       # next dev on :3000
-npm run preview                   # wrangler dev (workerd runtime, accurate)
+cp .dev.vars.example .dev.vars   # fill S3_* values + CRON_SECRET + ADMIN_*
+npm ci
+npm run dev                       # vite dev → SvelteKit, binds D1/ratelimit locally
+npm run check                     # svelte-check typecheck
 npm run s3:ping                   # verify S3 endpoint & credentials
 ```
+
+The server code reads env via `event.platform.env` (SvelteKit + adapter-cloudflare),
+not `getCloudflareContext()`. `lib/`, `database/schema.sql`, and
+`scripts/` are shared unchanged.
 
 ## Database
 
@@ -89,8 +97,13 @@ npx wrangler secret put ADMIN_PASSWORD
 npx wrangler secret put ADMIN_JWT_SECRET   # e.g. openssl rand -hex 32
 
 # Per-deploy
-npm run deploy                             # builds + deploys
+npm run deploy                             # vite build && wrangler deploy custom-worker.ts
 ```
+
+`wrangler.jsonc`'s `main` is the adapter's build target (`build/worker.js`,
+fetch-only). Deployment passes `custom-worker.ts` positionally: it imports the
+generated worker and adds the `scheduled` handler for the cleanup cron. Static
+assets are served via the `ASSETS` binding from `build/assets`.
 
 ### DNS (already configured)
 
@@ -109,32 +122,33 @@ Browser ──PUT──► S3 (presigned URL)
   │
   ├── POST /api/upload/init     ──► Worker ──► D1 (quota check)
   ├── POST /api/upload/complete ──► Worker ──► D1 (mint token)
-  └── GET  /api/download/:token ──► Worker (custom-worker.ts, native) ──► D1 (lookup) ──► presigned S3 GET ──► stream to client
+  └── GET  /api/download/:token ──► Worker (native stream) ──► D1 (lookup) ──► presigned S3 GET ──► stream to client
 
-Cleanup: cron every 30 min ──► Worker ──► D1 (find expired) ──► S3 (delete) ──► D1 (remove row)
+Cleanup: cron (scheduled handler in custom-worker.ts) ──► D1 (find expired) ──► S3 (delete) ──► D1 (remove row)
 ```
 
 ## Gotchas
 
-- **Downloads must be streamed at the native Worker layer, not in a Next.js
-  route handler.** The download GET proxy lives in `custom-worker.ts`
-  (`handleDownloadGet`), which fetches S3 and returns `new Response(upstream.body)`
-  directly. If you instead proxy inside `app/api/download/[token]/route.ts`, the
-  response travels through OpenNext's Next-node-server pipeline — it drops the
-  `Content-Length` and truncates the HTTP/2 stream randomly (same URL returns 0
-  / partial / full bytes) regardless of how the body is built (direct,
-  TransformStream, or arrayBuffer). The Next route GET is kept only as a
-  `Response.redirect(dlUrl, 302)` fallback (which works, but bypasses the proxy).
-- **`runtime = "edge"` is NOT usable for route handlers here.** The download
-  route must stay `runtime = "nodejs"`. With `edge`, OpenNext `1.19.9` fails
-  to load the app-route component (`interopDefault` / `findPageComponentsImpl`
-  → 500 "Internal Server Error").
-- **Verifying changes:** direct-S3 (presigned) downloads are 100% reliable;
-  any regressions in the proxy show up as < expected byte count. Loop on a
-  known-good share and require the response to keep `Content-Length` + full byte
-  count every time.
+- **Downloads stream at the native Worker layer.** The download GET handler
+  lives in `src/routes/api/download/[token]/+server.ts`, which fetches the
+  presigned S3 URL and returns `new Response(upstream.body, …)`. Because the
+  SvelteKit server is compiled straight into a Cloudflare Worker, this is a
+  plain Workers streaming passthrough — full length, `Content-Length` kept,
+  byte-range requests forwarded. The truncation bug we hit under OpenNext
+  (Next's node-server bridge dropping bytes on the HTTP/2 END_STREAM boundary)
+  cannot occur here.
+- **`lib/share/password.ts` uses Web Crypto** (SHA-256 + random salt), not
+  Node `crypto`, so the auth path needs no `nodejs_compat` buffering.
+- **AWS SDK DOM polyfills** are installed by `lib/s3/polyfill.ts`, imported at
+  the top of `lib/s3/client.ts` (must run before any `S3Client` is built).
+- **The cron `scheduled` handler is in `custom-worker.ts`**, not in SvelteKit:
+  adapter-cloudflare only emits a `fetch` handler, so we wrap the generated
+  worker and add `scheduled` → `runCleanup`.
+- **Verifying changes:** direct presigned-S3 downloads are 100% reliable. Loop
+  on a known-good share and require the response to keep `Content-Length` +
+  full byte count + matching SHA-256 every time.
 
 ## See Also
 
-- `AGENTS.md` — agent orientation (compact handoff for AI coding agents)
+- `AGENTS.md` — agent orientation (compact handoff)
 - `/docs` — live API documentation page

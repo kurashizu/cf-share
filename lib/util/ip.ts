@@ -6,7 +6,7 @@
  * itself sets so this also works behind `wrangler dev` (which uses
  * `cf-connecting-ip` for the local client).
  */
-export function getClientIp(request: Request): string {
+export function getClientIp(request: Request, fallback?: string): string {
 	const cf = (request as Request & { cf?: { clientIP?: string } }).cf;
 	if (cf?.clientIP) return cf.clientIP;
 
@@ -25,8 +25,11 @@ export function getClientIp(request: Request): string {
 			if (first) return first;
 		}
 	}
-	return "0.0.0.0";
+	// In SvelteKit the adapter provides `event.getClientAddress()`
+	// (cf-connecting-ip) — use that as the last resort.
+	return fallback ?? "0.0.0.0";
 }
+
 
 /** Today's UTC date as `YYYY-MM-DD` (used as partition key for upload_quota). */
 export function utcDayKey(now: Date = new Date()): string {

@@ -4,9 +4,9 @@ import {
   DeleteObjectCommand,
   ListMultipartUploadsCommand,
   ListObjectsV2Command,
-  ListObjectsV2CommandOutput,
   AbortMultipartUploadCommand,
 } from "@aws-sdk/client-s3";
+import type { ListObjectsV2CommandOutput } from "@aws-sdk/client-s3";
 import { createS3Client, bucketName } from "./client";
 
 /**
