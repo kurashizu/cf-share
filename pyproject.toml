@@ -1,0 +1,22 @@
+[project]
+name = "cf-share"
+version = "0.0.0"
+description = "cf-share monorepo (Next.js worker + sharetube TUI)"
+requires-python = ">=3.11"
+
+# Pulling the TUI as a dependency from the workspace makes its console
+# scripts (i.e. `sharetube`) install into the root .venv, so
+# `uv run sharetube` works from the repository root.
+dependencies = [
+    "sharetube",
+]
+
+[tool.uv]
+managed = true
+package = false
+
+[tool.uv.workspace]
+members = ["utils/sharetube"]
+
+[tool.uv.sources]
+sharetube = { workspace = true }

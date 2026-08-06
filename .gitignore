@@ -52,3 +52,10 @@ next-env.d.ts
 
 # Python test scripts
 __pycache__/
+
+# uv-managed Python projects (utils/sharetube and any future utils/*)
+# .venv / __pycache__ inside utils/ are excluded, but source files including
+# uv.lock are committed so deps are reproducible across machines.
+utils/**/.venv/
+utils/**/__pycache__/
+utils/**/*.pyc
