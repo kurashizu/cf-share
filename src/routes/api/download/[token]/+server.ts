@@ -94,14 +94,18 @@ export const GET: RequestHandler = async ({
 		const hasPassword = !!share.password_hash;
 
 		if (url.searchParams.get('info') === '1') {
-			return downloadJson({
-				filename: share.filename,
-				size_bytes: share.size_bytes,
-				content_type: share.content_type,
-				expires_at: share.expires_at,
-				download_count: share.download_count,
-				has_password: hasPassword
-			});
+			return downloadJson(
+				{
+					filename: share.filename,
+					size_bytes: share.size_bytes,
+					content_type: share.content_type,
+					expires_at: share.expires_at,
+					download_count: share.download_count,
+					has_password: hasPassword
+				},
+				200,
+				{ 'Cache-Control': 'no-store' }
+			);
 		}
 
 		// ── Password verification (query param) ──
@@ -129,7 +133,8 @@ export const GET: RequestHandler = async ({
 				});
 				return downloadJson(
 					{ error: 'Password required', password_protected: true },
-					401
+					401,
+					{ 'Cache-Control': 'no-store' }
 				);
 			}
 		}
@@ -176,11 +181,11 @@ export const GET: RequestHandler = async ({
 			const v = upstream.headers.get(h);
 			if (v) responseHeaders.set(h, v);
 		}
+		responseHeaders.set('Cache-Control', 'public, max-age=300, stale-while-revalidate=86400');
 		responseHeaders.set(
 			'Content-Disposition',
 			`attachment; filename="${share.filename.replace(/["\\r\\n]/g, '')}"`
 		);
-		responseHeaders.set('Cache-Control', 'private, no-store');
 
 		await audit(env, {
 			ip,
