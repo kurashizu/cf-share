@@ -165,6 +165,23 @@ export async function runExpiredShareCleanup(
     const s3 = await deleteS3Object(env, share.bucket, share.s3_key);
     if (!s3.ok) s3Errors++;
 
+    // Best-effort: drop any Cache API pre-warm entry so expired shares
+    // can't keep serving bytes until LRU evicts them. We use a fixed
+    // internal URL to match the cache key produced by prefetchDownloadToCache.
+    try {
+      const cfCaches = caches as unknown as {
+        default: { delete: (req: Request | string) => Promise<boolean> };
+      };
+      await cfCaches.default.delete(
+        new Request(`https://cf-share-internal/api/download/${share.token}`),
+      );
+    } catch (err) {
+      console.warn("[cleanup] caches.default.delete failed", {
+        token: share.token,
+        err: String(err),
+      });
+    }
+
     try {
       await deleteShareRow(env, share.token);
       deleted++;

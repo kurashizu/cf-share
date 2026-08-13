@@ -13,6 +13,7 @@ import { audit } from '@/lib/util/audit';
 import { createShare, incrementQuota, readQuota } from '@/lib/share/store';
 import { hashPassword, isValidPassword } from '@/lib/share/password';
 import { requestIsAuthorized } from '@/lib/admin/auth';
+import { prefetchDownloadToCache } from '@/lib/cache/download-cache';
 
 interface CompleteBody {
 	mode?: unknown;
@@ -395,6 +396,29 @@ async function handleComplete(
 			}
 		});
 
+		const prefetchResult = await prefetchDownloadToCache(env, {
+			token,
+			bucket: env.S3_BUCKET,
+			key,
+			filename,
+			contentType,
+			size,
+			etag: null
+		});
+		if (!prefetchResult.ok) {
+			await audit(env, {
+				ip,
+				action: 'complete',
+				shareToken: token,
+				status: 200,
+				detail: {
+					reason: 'prefetch-failed',
+					mode: 'multipart',
+					prefetchReason: prefetchResult.reason
+				}
+			});
+		}
+
 		const response: CompleteResponse = {
 			shareToken: token,
 			shareUrl: `/d/${token}`,
@@ -554,6 +578,29 @@ async function handleComplete(
 			via: isAdmin ? 'admin' : 'anon'
 		}
 	});
+
+	const prefetchResult = await prefetchDownloadToCache(env, {
+		token,
+		bucket: env.S3_BUCKET,
+		key,
+		filename,
+		contentType,
+		size,
+		etag
+	});
+	if (!prefetchResult.ok) {
+		await audit(env, {
+			ip,
+			action: 'complete',
+			shareToken: token,
+			status: 200,
+			detail: {
+				reason: 'prefetch-failed',
+				mode: 'single',
+				prefetchReason: prefetchResult.reason
+			}
+		});
+	}
 
 	const response: CompleteResponse = {
 		shareToken: token,

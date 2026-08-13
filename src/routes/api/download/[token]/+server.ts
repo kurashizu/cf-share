@@ -8,6 +8,7 @@ import { checkRateLimit } from '@/lib/rate-limit/check';
 import { getClientIp } from '@/lib/util/ip';
 import { audit } from '@/lib/util/audit';
 import { isValidToken } from '@/lib/share/token';
+import { matchDownloadCache } from '@/lib/cache/download-cache';
 
 /**
  * GET /api/download/:token — native streaming download.
@@ -137,6 +138,26 @@ export const GET: RequestHandler = async ({
 					{ 'Cache-Control': 'no-store' }
 				);
 			}
+		}
+
+		// ── Cache API pre-warm hit? Skip S3 entirely. ──
+		// Cache key is the bare `/api/download/{token}` URL regardless of
+		// `?password=` (the password gate happens above; anyone who reaches
+		// here already has the password, and the URL itself is the secret).
+		const cached = await matchDownloadCache(token);
+		if (cached) {
+			await recordDownload(env, token);
+			await audit(env, {
+				ip,
+				action: 'download',
+				shareToken: token,
+				status: cached.status,
+				detail: {
+					...(hasPassword ? { password_protected: true } : {}),
+					fromCache: true
+				}
+			});
+			return cached;
 		}
 
 		await recordDownload(env, token);
