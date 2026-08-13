@@ -1,6 +1,7 @@
 import { GetObjectCommand } from '@aws-sdk/client-s3';
 import { createS3Client, bucketName } from '@/lib/s3/client';
 import { presignGet } from '@/lib/s3/presign';
+import { audit } from '@/lib/util/audit';
 
 /**
  * Cache API helpers for the download path.
@@ -43,11 +44,20 @@ export function downloadCacheKey(token: string): Request {
  * Stream the freshly-uploaded object from S3 into caches.default so the
  * first GET hits the cache.
  *
- * Uses streaming end-to-end (S3 → Worker → Cache API → edge) so we don't
- * load the whole file into Worker memory. 50 MB takes ~1 s, 500 MB takes
- * ~10 s on a typical CF edge link — well inside Workers Paid CPU time,
- * but still under the 50 subrequests/request Free quota because the only
- * remote calls are 1× S3 GET + 1× cache.put().
+ * Background-fire-and-forget: the upload-complete handler should NOT
+ * `await` this promise, but should pass it to `ctx.waitUntil()` so the
+ * Worker stays alive long enough to fully buffer the body into the cache.
+ *
+ * Why: `caches.default.put()` writes a streaming Response by reading the
+ * body in the background. If the Worker returns its HTTP response and
+ * exits before that read completes, the cache write is cancelled mid-flight
+ * — large files (e.g. 300 MB+) silently never land in the cache. With
+ * waitUntil, the Worker holds the lifecycle open until the promise
+ * resolves (or rejects).
+ *
+ * Failure is logged both as a console warning and an audit entry so we
+ * can distinguish "prefetch failed" from "prefetch succeeded but cache
+ * was evicted" in production telemetry.
  */
 export async function prefetchDownloadToCache(
 	env: CloudflareEnv,
@@ -59,8 +69,10 @@ export async function prefetchDownloadToCache(
 		contentType: string;
 		size: number;
 		etag?: string | null;
+		ip?: string | null;
 	}
 ): Promise<{ ok: boolean; reason?: string }> {
+	const startedAt = Date.now();
 	try {
 		const client = createS3Client(env);
 		const dlUrl = await presignGet({
@@ -73,7 +85,7 @@ export async function prefetchDownloadToCache(
 
 		const upstream = await fetch(dlUrl);
 		if (!upstream.ok || !upstream.body) {
-			return { ok: false, reason: `s3-status-${upstream.status}` };
+			throw new Error(`s3-status-${upstream.status}`);
 		}
 
 		const headers = new Headers();
@@ -93,14 +105,55 @@ export async function prefetchDownloadToCache(
 		});
 
 		await getDefaultCache().put(downloadCacheKey(args.token), cachedResponse);
+		// Record success audit so we can confirm the prefetch actually landed.
+		// Without this we can't distinguish "prefetch failed" from "prefetch
+		// silently evicted" in production telemetry.
+		const elapsedMs = Date.now() - startedAt;
+		try {
+			await audit(env, {
+				ip: args.ip ?? '0.0.0.0',
+				action: 'complete',
+				shareToken: args.token,
+				status: 200,
+				detail: {
+					reason: 'prefetch-success',
+					size: args.size,
+					elapsedMs
+				}
+			});
+		} catch (auditErr) {
+			console.warn('[prefetch] success-audit write failed', {
+				token: args.token,
+				err: String(auditErr)
+			});
+		}
 		return { ok: true };
 	} catch (err) {
 		const reason = err instanceof Error ? err.message : String(err);
 		console.warn('[prefetch] failed; first download will fall back to S3', {
 			token: args.token,
 			key: args.key,
+			size: args.size,
 			reason
 		});
+		try {
+			await audit(env, {
+				ip: args.ip ?? '0.0.0.0',
+				action: 'complete',
+				shareToken: args.token,
+				status: 200,
+				detail: {
+					reason: 'prefetch-failed',
+					size: args.size,
+					prefetchReason: reason
+				}
+			});
+		} catch (auditErr) {
+			console.warn('[prefetch] audit write also failed', {
+				token: args.token,
+				err: String(auditErr)
+			});
+		}
 		return { ok: false, reason };
 	}
 }

@@ -64,13 +64,23 @@ async function safeDeleteS3Object(
  *     { mode:"multipart", uploadId, s3UploadId, key, filename, size,
  *       contentType, parts:[{partNumber,etag}], ttl, password? }
  */
-export const POST: RequestHandler = async ({ request, platform, getClientAddress, url }) => {
+export const POST: RequestHandler = async ({
+	request,
+	platform,
+	getClientAddress,
+	url
+}) => {
 	const env = platform!.env;
+	const waitUntil = platform!.context.waitUntil.bind(platform!.context);
 	const ip = getClientIp(request, getClientAddress());
 	const userAgent = request.headers.get('user-agent')?.slice(0, 200) ?? null;
 
 	try {
-		return await handleComplete(request, { env, ip, userAgent }, url.origin);
+		return await handleComplete(
+			request,
+			{ env, ip, userAgent, waitUntil },
+			url.origin
+		);
 	} catch (err) {
 		console.error('[complete] unhandled error', {
 			err: err instanceof Error ? err.message : String(err),
@@ -82,10 +92,15 @@ export const POST: RequestHandler = async ({ request, platform, getClientAddress
 
 async function handleComplete(
 	request: Request,
-	ctx: { env: CloudflareEnv; ip: string; userAgent: string | null },
+	ctx: {
+		env: CloudflareEnv;
+		ip: string;
+		userAgent: string | null;
+		waitUntil: (promise: Promise<unknown>) => void;
+	},
 	origin: string
 ): Promise<Response> {
-	const { env, ip, userAgent } = ctx;
+	const { env, ip, userAgent, waitUntil } = ctx;
 
 	// Admin bypass: JWT cookie skips rate limiting and per-IP daily quota.
 	const isAdmin = await requestIsAuthorized(env, request);
@@ -396,28 +411,23 @@ async function handleComplete(
 			}
 		});
 
-		const prefetchResult = await prefetchDownloadToCache(env, {
-			token,
-			bucket: env.S3_BUCKET,
-			key,
-			filename,
-			contentType,
-			size,
-			etag: null
-		});
-		if (!prefetchResult.ok) {
-			await audit(env, {
-				ip,
-				action: 'complete',
-				shareToken: token,
-				status: 200,
-				detail: {
-					reason: 'prefetch-failed',
-					mode: 'multipart',
-					prefetchReason: prefetchResult.reason
-				}
-			});
-		}
+		// Fire-and-forget cache pre-warm. We MUST wrap in waitUntil() so the
+		// Worker lifecycle doesn't exit before the streaming body has been
+		// fully buffered into caches.default — otherwise the put is silently
+		// cancelled mid-flight for large files (300 MB+). Audit on failure is
+		// written inside prefetchDownloadToCache.
+		waitUntil(
+			prefetchDownloadToCache(env, {
+				token,
+				bucket: env.S3_BUCKET,
+				key,
+				filename,
+				contentType,
+				size,
+				etag: null,
+				ip
+			})
+		);
 
 		const response: CompleteResponse = {
 			shareToken: token,
@@ -579,28 +589,20 @@ async function handleComplete(
 		}
 	});
 
-	const prefetchResult = await prefetchDownloadToCache(env, {
-		token,
-		bucket: env.S3_BUCKET,
-		key,
-		filename,
-		contentType,
-		size,
-		etag
-	});
-	if (!prefetchResult.ok) {
-		await audit(env, {
-			ip,
-			action: 'complete',
-			shareToken: token,
-			status: 200,
-			detail: {
-				reason: 'prefetch-failed',
-				mode: 'single',
-				prefetchReason: prefetchResult.reason
-			}
-		});
-	}
+	// Fire-and-forget cache pre-warm — see note in multipart path above
+	// about waitUntil() preventing large-file buffer cancellation.
+	waitUntil(
+		prefetchDownloadToCache(env, {
+			token,
+			bucket: env.S3_BUCKET,
+			key,
+			filename,
+			contentType,
+			size,
+			etag,
+			ip
+		})
+	);
 
 	const response: CompleteResponse = {
 		shareToken: token,
