@@ -73,6 +73,32 @@ export async function prefetchDownloadToCache(
 	}
 ): Promise<{ ok: boolean; reason?: string }> {
 	const startedAt = Date.now();
+
+	// Skip prefetch for files that won't fit inside waitUntil's 30 s budget.
+	// Cloudflare terminates waitUntil work after 30 s on every plan, so
+	// prefetching a 300 MB file (which takes ~60 s at our 5 MB/s S3 link)
+	// gets cancelled mid-write and silently never lands in the cache. Cache
+	// API itself allows up to 512 MB per object; the bottleneck is wall time,
+	// not storage. 150 MB leaves ~10 s headroom over the observed 19.6 s for
+	// a 100 MB file.
+	const PREFETCH_MAX_BYTES = 150 * 1024 * 1024;
+	if (args.size > PREFETCH_MAX_BYTES) {
+		try {
+			await audit(env, {
+				ip: args.ip ?? '0.0.0.0',
+				action: 'complete',
+				shareToken: args.token,
+				status: 200,
+				detail: {
+					reason: 'prefetch-skipped',
+					size: args.size,
+					reason2: 'waitUntil-budget'
+				}
+			});
+		} catch {}
+		return { ok: false, reason: 'size-over-budget' };
+	}
+
 	try {
 		const client = createS3Client(env);
 		const dlUrl = await presignGet({
@@ -164,7 +190,16 @@ export async function prefetchDownloadToCache(
  */
 export async function matchDownloadCache(token: string): Promise<Response | null> {
 	try {
-		const hit = await getDefaultCache().match(downloadCacheKey(token));
+		const cache = getDefaultCache();
+		const key = downloadCacheKey(token);
+		const hit = await cache.match(key);
+		console.log('[cache-debug] match', {
+			token,
+			keyUrl: key.url,
+			hit: !!hit,
+			hitStatus: hit?.status,
+			hitCC: hit?.headers.get('Cache-Control')
+		});
 		return hit ?? null;
 	} catch (err) {
 		console.warn('[download-cache] match failed; falling back to S3', {

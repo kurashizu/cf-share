@@ -8,7 +8,7 @@ import { checkRateLimit } from '@/lib/rate-limit/check';
 import { getClientIp } from '@/lib/util/ip';
 import { audit } from '@/lib/util/audit';
 import { isValidToken } from '@/lib/share/token';
-import { matchDownloadCache } from '@/lib/cache/download-cache';
+import { matchDownloadCache, downloadCacheKey } from '@/lib/cache/download-cache';
 
 /**
  * GET /api/download/:token — native streaming download.
@@ -220,8 +220,71 @@ export const GET: RequestHandler = async ({
 			}
 		});
 
+		// Cache-aside: cache-hit the *next* viewer so it doesn't have to
+		// round-trip through S3 again. `caches.default.put` consumes the
+		// body stream, so we tee() upstream.body and give one branch to
+		// the current viewer and the other to the cache fill. Cache key
+		// is the bare internal URL (same as the prefetch path).
+		//
+		// Limited to ≤150 MB so the fill fits inside the 30 s waitUntil
+		// budget on every plan. Larger files just rely on CF HTTP edge
+		// cache (24 h max-age) — and on the next upload they get a fresh
+		// prefetch once the cache is empty again.
+		let responseBody: ReadableStream<Uint8Array> | null = upstream.body;
+		if (
+			upstream.body &&
+			Number(share.size_bytes) <= 150 * 1024 * 1024
+		) {
+			try {
+				const [forViewer, forCache] = upstream.body.tee();
+				responseBody = forViewer;
+				const cachedHeaders = new Headers(responseHeaders);
+				cachedHeaders.set(
+					'Cache-Control',
+					'public, max-age=2592000, stale-while-revalidate=2592000'
+				);
+				const cachedResponse = new Response(forCache, {
+					status: upstream.status,
+					headers: cachedHeaders
+				});
+				const waitUntil = (
+					platform!.context as {
+						waitUntil: (p: Promise<unknown>) => void;
+					}
+				).waitUntil.bind(platform!.context);
+				waitUntil(
+					(async () => {
+						try {
+							const cache = (
+								caches as unknown as {
+									default: Cache;
+								}
+							).default;
+							await cache.put(
+								downloadCacheKey(token),
+								cachedResponse
+							);
+						} catch (e) {
+							console.warn('[cache-aside] fill failed', {
+								token,
+								err:
+									e instanceof Error
+										? e.message
+										: String(e)
+							});
+						}
+					})()
+				);
+			} catch (e) {
+				console.warn('[cache-aside] tee failed; falling back to direct passthrough', {
+					token,
+					err: e instanceof Error ? e.message : String(e)
+				});
+			}
+		}
+
 		// Native streaming passthrough — canonical CF Worker pattern.
-		return new Response(upstream.body, {
+		return new Response(responseBody ?? upstream.body, {
 			status: upstream.status,
 			headers: responseHeaders
 		});
