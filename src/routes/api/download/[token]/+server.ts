@@ -181,7 +181,7 @@ export const GET: RequestHandler = async ({
 			const v = upstream.headers.get(h);
 			if (v) responseHeaders.set(h, v);
 		}
-		responseHeaders.set('Cache-Control', 'public, max-age=300, stale-while-revalidate=86400');
+		responseHeaders.set('Cache-Control', 'public, max-age=86400, stale-while-revalidate=2592000');
 		responseHeaders.set(
 			'Content-Disposition',
 			`attachment; filename="${share.filename.replace(/["\\r\\n]/g, '')}"`
