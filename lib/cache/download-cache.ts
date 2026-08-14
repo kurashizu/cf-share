@@ -2,6 +2,7 @@ import { GetObjectCommand } from '@aws-sdk/client-s3';
 import { createS3Client, bucketName } from '@/lib/s3/client';
 import { presignGet } from '@/lib/s3/presign';
 import { audit } from '@/lib/util/audit';
+import { contentDisposition } from '@/lib/util/content-disposition';
 
 /**
  * Cache API helpers for the download path.
@@ -118,10 +119,7 @@ export async function prefetchDownloadToCache(
 		headers.set('Content-Type', args.contentType || 'application/octet-stream');
 		headers.set('Content-Length', String(args.size));
 		if (args.etag) headers.set('ETag', `"${args.etag}"`);
-		headers.set(
-			'Content-Disposition',
-			`attachment; filename="${args.filename.replace(/["\\r\\n]/g, '')}"`
-		);
+		headers.set('Content-Disposition', contentDisposition(args.filename));
 		headers.set('Cache-Control', 'public, max-age=2592000, stale-while-revalidate=2592000');
 		headers.set('X-Robots-Tag', 'noindex, nofollow');
 

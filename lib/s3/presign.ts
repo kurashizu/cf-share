@@ -1,6 +1,7 @@
 import { GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import type { S3Client } from "@aws-sdk/client-s3";
+import { contentDisposition } from "@/lib/util/content-disposition";
 
 /**
  * Generate a presigned PUT URL the browser can use to upload directly to S3.
@@ -43,7 +44,7 @@ export async function presignGet(args: {
     Key: args.key,
     ...(args.filename
       ? {
-          ResponseContentDisposition: `attachment; filename="${args.filename.replace(/"/g, "")}"`,
+          ResponseContentDisposition: contentDisposition(args.filename),
         }
       : {}),
     ...(args.contentType ? { ResponseContentType: args.contentType } : {}),

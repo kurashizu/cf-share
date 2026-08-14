@@ -7,6 +7,7 @@ import { verifyPassword } from '@/lib/share/password';
 import { checkRateLimit } from '@/lib/rate-limit/check';
 import { getClientIp } from '@/lib/util/ip';
 import { audit } from '@/lib/util/audit';
+import { contentDisposition } from '@/lib/util/content-disposition';
 import { isValidToken } from '@/lib/share/token';
 import { matchDownloadCache, downloadCacheKey } from '@/lib/cache/download-cache';
 
@@ -154,7 +155,13 @@ export const GET: RequestHandler = async ({
 				status: cached.status,
 				detail: {
 					...(hasPassword ? { password_protected: true } : {}),
-					fromCache: true
+					fromCache: true,
+					...(request.headers.get('range')
+						? { range: request.headers.get('range') }
+						: {}),
+					cachedContentLength: cached.headers.get('content-length'),
+					cachedContentRange: cached.headers.get('content-range'),
+					userAgent: request.headers.get('user-agent')?.slice(0, 200) ?? null
 				}
 			});
 			return cached;
@@ -203,10 +210,7 @@ export const GET: RequestHandler = async ({
 			if (v) responseHeaders.set(h, v);
 		}
 		responseHeaders.set('Cache-Control', 'public, max-age=86400, stale-while-revalidate=2592000');
-		responseHeaders.set(
-			'Content-Disposition',
-			`attachment; filename="${share.filename.replace(/["\\r\\n]/g, '')}"`
-		);
+		responseHeaders.set('Content-Disposition', contentDisposition(share.filename));
 
 		await audit(env, {
 			ip,
@@ -216,7 +220,13 @@ export const GET: RequestHandler = async ({
 			detail: {
 				...(hasPassword ? { password_protected: true } : {}),
 				proxy: true,
-				native: true
+				native: true,
+				...(request.headers.get('range')
+					? { range: request.headers.get('range') }
+					: {}),
+				upstreamContentLength: upstream.headers.get('content-length'),
+				upstreamContentRange: upstream.headers.get('content-range'),
+				userAgent: request.headers.get('user-agent')?.slice(0, 200) ?? null
 			}
 		});
 
