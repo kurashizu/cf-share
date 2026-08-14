@@ -65,14 +65,18 @@ function parseByteRange(header: string | null, size: number): ByteRange | null {
 	if (!startText) {
 		const suffix = Number(endText);
 		if (!Number.isSafeInteger(suffix) || suffix <= 0) return null;
-		return { start: Math.max(0, size - suffix), end: size - 1 };
+		const length = Math.min(suffix, S3_PROXY_CHUNK_BYTES);
+		return { start: Math.max(0, size - length), end: size - 1 };
 	}
 
 	const start = Number(startText);
 	if (!Number.isSafeInteger(start) || start < 0 || start >= size) return null;
 	const requestedEnd = endText ? Number(endText) : size - 1;
 	if (!Number.isSafeInteger(requestedEnd) || requestedEnd < start) return null;
-	return { start, end: Math.min(requestedEnd, size - 1) };
+	return {
+		start,
+		end: Math.min(requestedEnd, size - 1, start + S3_PROXY_CHUNK_BYTES - 1)
+	};
 }
 
 /**
