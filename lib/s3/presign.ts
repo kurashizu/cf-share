@@ -1,6 +1,14 @@
 import { GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import type { S3Client } from "@aws-sdk/client-s3";
+
+/** SigV4 presigned URLs are limited to seven days. */
+const MAX_PRESIGNED_GET_SECONDS = 7 * 24 * 60 * 60;
+
+export function presignedGetTtl(expiresAt: number, now = Date.now()): number {
+  const remaining = Math.ceil((expiresAt - now) / 1000);
+  return Math.max(1, Math.min(remaining, MAX_PRESIGNED_GET_SECONDS));
+}
 import { contentDisposition } from "@/lib/util/content-disposition";
 
 /**

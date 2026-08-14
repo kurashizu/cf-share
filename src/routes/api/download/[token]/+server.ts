@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { createS3Client } from '@/lib/s3/client';
-import { presignGet } from '@/lib/s3/presign';
+import { presignGet, presignedGetTtl } from '@/lib/s3/presign';
 import { getShare, recordDownload } from '@/lib/share/store';
 import { verifyPassword } from '@/lib/share/password';
 import { checkRateLimit } from '@/lib/rate-limit/check';
@@ -146,7 +146,7 @@ export const GET: RequestHandler = async ({
 			client,
 			bucket: share.bucket,
 			key: share.s3_key,
-			expiresIn: Number(env.DOWNLOAD_URL_TTL),
+			expiresIn: presignedGetTtl(share.expires_at),
 			filename: share.filename
 		});
 
@@ -220,7 +220,7 @@ export const POST: RequestHandler = async ({
 			client,
 			bucket: share.bucket,
 			key: share.s3_key,
-			expiresIn: Number(env.DOWNLOAD_URL_TTL),
+			expiresIn: presignedGetTtl(share.expires_at),
 			filename: share.filename
 		});
 		return json({ verified: true, downloadUrl: dlUrl });
@@ -251,7 +251,7 @@ export const POST: RequestHandler = async ({
 		client,
 		bucket: share.bucket,
 		key: share.s3_key,
-		expiresIn: Number(env.DOWNLOAD_URL_TTL),
+		expiresIn: presignedGetTtl(share.expires_at),
 		filename: share.filename
 	});
 
