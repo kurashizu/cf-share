@@ -122,20 +122,19 @@ Browser ──PUT──► S3 (presigned URL)
   │
   ├── POST /api/upload/init     ──► Worker ──► D1 (quota check)
   ├── POST /api/upload/complete ──► Worker ──► D1 (mint token)
-  └── GET  /api/download/:token ──► Worker (bounded native proxy) ──► D1 (lookup) ──► sequential 1 MiB S3 Range GETs ──► client
+  └── GET  /api/download/:token ──► Worker (auth + 307) ──► client ──► presigned S3 URL
 
 Cleanup: cron (scheduled handler in custom-worker.ts) ──► D1 (find expired) ──► S3 (delete) ──► D1 (remove row)
 ```
 
 ## Gotchas
 
-- **Downloads use a bounded native Worker proxy.** The download GET handler
-  lives in `src/routes/api/download/[token]/+server.ts`. It proxies the file
-  as sequential 1 MiB S3 Range GETs, preserving `Content-Length`,
-  `Content-Range`, and byte-range semantics without buffering or caching.
-  If the client disconnects, the current S3 request is aborted and the Worker
-  does not request another chunk. This bounds abandoned origin traffic to one
-  in-flight chunk.
+- **Downloads use an authenticated S3 redirect.** The download GET handler
+  lives in `src/routes/api/download/[token]/+server.ts`. It performs the D1
+  lookup, password gate, rate-limit check, and audit, then returns a short-lived
+  `307` redirect to a presigned S3 URL. File bytes never pass through the
+  Worker, so client disconnects close the S3 connection directly. There is no
+  buffering, cache, or background origin read.
 
 - **`lib/share/password.ts` uses Web Crypto** (SHA-256 + random salt), not
   Node `crypto`, so the auth path needs no `nodejs_compat` buffering.

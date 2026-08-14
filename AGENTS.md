@@ -58,11 +58,11 @@ Key layout: `uploads/{YYYY}/{MM}/{DD}/{share-token}/{filename}`
 All uploads go direct to S3 via presigned URL — Worker never sees upload
 bytes. Multipart upload used for files > 90 MB (50 MB parts).
 
-Downloads are proxied natively in `src/routes/api/download/[token]/+server.ts`:
-look up the share in D1, create a presigned S3 GET, and stream the object as
-sequential 1 MiB S3 Range requests. The Worker never buffers or caches the
-object. A downstream disconnect aborts the current S3 request and no next
-chunk is requested, bounding abandoned-origin traffic to one chunk.
+Downloads are authenticated redirects in `src/routes/api/download/[token]/+server.ts`:
+look up the share in D1, perform the password gate and audit, then return a
+short-lived 307 redirect to the presigned S3 URL. File bytes never pass
+through the Worker, so a disconnected client closes its S3 connection
+directly. There is no cache, buffering, proxy stream, or background read.
 
 ## Limits
 
@@ -109,9 +109,8 @@ npm run db:migrate:remote
 - All UI in English, TypeScript strict mode, Tailwind 4.
 - Server-side validation on every API route; never trust the client.
 - All S3 interactions go through `lib/s3/*` — no scattered `S3Client` instances.
-- Downloading: keep the streaming proxy in
-  `src/routes/api/download/[token]/+server.ts`. It must use bounded 1 MiB
-  Range fetches, never buffer the body, never cache it, and abort the current
-  S3 fetch when the downstream client disconnects. Never add a node-server
-  bridge.
+- Downloading: keep the authenticated 307 redirect in
+  `src/routes/api/download/[token]/+server.ts`. The Worker must not proxy,
+  buffer, cache, or background-read file bytes. Password verification happens
+  before the redirect.
 - Env: use `event.platform.env`; `getCloudflareContext()` (OpenNext) no longer exists.

@@ -7,18 +7,15 @@ import { verifyPassword } from '@/lib/share/password';
 import { checkRateLimit } from '@/lib/rate-limit/check';
 import { getClientIp } from '@/lib/util/ip';
 import { audit } from '@/lib/util/audit';
-import { contentDisposition } from '@/lib/util/content-disposition';
 import { isValidToken } from '@/lib/share/token';
 
 /**
- * GET /api/download/:token — bounded native streaming proxy.
+ * GET /api/download/:token — authenticated redirect to S3.
  *
- * The whole handler runs inside the Cloudflare Worker compiled by
- * adapter-cloudflare. The object is proxied as sequential 1 MiB S3 Range GETs;
- * the Worker never buffers or caches the file. A downstream disconnect aborts
- * the current chunk and no later chunk is requested.
- * Byte-range requests are validated and forwarded through the same bounded
- * proxy.
+ * The Worker performs the D1 lookup, password gate, rate-limit check, and
+ * audit, then returns a short-lived 307 redirect to the presigned S3 URL.
+ * File bytes never pass through the Worker, so closing the client connection
+ * closes the S3 connection directly without a Worker-held upstream stream.
  *
  *   ?info=1     → return share metadata as JSON (includes has_password).
  *   default     → stream the file bytes from S3 through the Worker (if no password).
@@ -40,141 +37,6 @@ function downloadJson(
 			'Content-Type': 'application/json',
 			'X-Robots-Tag': 'noindex, nofollow',
 			...extraHeaders
-		}
-	});
-}
-
-const S3_PROXY_CHUNK_BYTES = 1 * 1024 * 1024;
-const DOWNSTREAM_IDLE_TIMEOUT_MS = 3_000;
-
-interface ByteRange {
-	start: number;
-	end: number;
-}
-
-/** Parse one RFC 9110 byte range. Multi-range requests are rejected. */
-function parseByteRange(header: string | null, size: number): ByteRange | null {
-	if (!header) return { start: 0, end: size - 1 };
-	const match = /^bytes=(\d*)-(\d*)$/.exec(header.trim());
-	if (!match) return null;
-
-	const startText = match[1];
-	const endText = match[2];
-	if (!startText && !endText) return null;
-
-	if (!startText) {
-		const suffix = Number(endText);
-		if (!Number.isSafeInteger(suffix) || suffix <= 0) return null;
-		const length = Math.min(suffix, S3_PROXY_CHUNK_BYTES);
-		return { start: Math.max(0, size - length), end: size - 1 };
-	}
-
-	const start = Number(startText);
-	if (!Number.isSafeInteger(start) || start < 0 || start >= size) return null;
-	const requestedEnd = endText ? Number(endText) : size - 1;
-	if (!Number.isSafeInteger(requestedEnd) || requestedEnd < start) return null;
-	return {
-		start,
-		end: Math.min(requestedEnd, size - 1, start + S3_PROXY_CHUNK_BYTES - 1)
-	};
-}
-
-/**
- * Proxy an object as sequential bounded S3 Range GETs.
- *
- * A bounded upstream request is intentional: if the downstream disappears
- * without propagating cancellation through the Worker runtime, at most the
- * current 1 MiB S3 request can continue. The next chunk is only requested
- * after the downstream asks for more data.
- */
-function createChunkedS3Body(args: {
-	token: string;
-	dlUrl: string;
-	range: ByteRange;
-	baseHeaders: Headers;
-	abort: AbortController;
-}): ReadableStream<Uint8Array> {
-	let offset = args.range.start;
-	let currentEnd = -1;
-	let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
-	let idleTimer: ReturnType<typeof setTimeout> | null = null;
-	let closed = false;
-
-	const clearIdleTimer = () => {
-		if (idleTimer !== null) clearTimeout(idleTimer);
-		idleTimer = null;
-	};
-
-	const armIdleTimer = () => {
-		clearIdleTimer();
-		idleTimer = setTimeout(() => {
-			closed = true;
-			console.warn('[download-proxy] downstream idle timeout', {
-				token: args.token,
-				offset
-			});
-			args.abort.abort(new Error('downstream-idle-timeout'));
-			void reader?.cancel('downstream-idle-timeout');
-		}, DOWNSTREAM_IDLE_TIMEOUT_MS);
-	};
-
-	return new ReadableStream<Uint8Array>({
-		start() {
-			armIdleTimer();
-		},
-		async pull(controller) {
-			if (closed) return;
-			armIdleTimer();
-
-			try {
-				while (offset <= args.range.end) {
-					if (!reader) {
-						currentEnd = Math.min(
-							args.range.end,
-							offset + S3_PROXY_CHUNK_BYTES - 1
-						);
-						const headers = new Headers(args.baseHeaders);
-						headers.set('range', `bytes=${offset}-${currentEnd}`);
-						const upstream = await fetch(args.dlUrl, {
-							headers,
-							signal: args.abort.signal
-						});
-						if (!upstream.ok || upstream.status !== 206 || !upstream.body) {
-							throw new Error(`s3-chunk-status-${upstream.status}`);
-						}
-						reader = upstream.body.getReader();
-					}
-
-					const result = await reader.read();
-					if (result.done) {
-						reader.releaseLock();
-						reader = null;
-						offset = currentEnd + 1;
-						continue;
-					}
-					controller.enqueue(result.value);
-					armIdleTimer();
-					return;
-				}
-
-				closed = true;
-				clearIdleTimer();
-				controller.close();
-			} catch (err) {
-				closed = true;
-				clearIdleTimer();
-				controller.error(err);
-			}
-		},
-		async cancel(reason) {
-			closed = true;
-			clearIdleTimer();
-			args.abort.abort(reason);
-			try {
-				await reader?.cancel(reason);
-			} catch {
-				// The current S3 chunk may already be closed.
-			}
 		}
 	});
 }
@@ -277,18 +139,6 @@ export const GET: RequestHandler = async ({
 		}
 
 		const requestedRange = request.headers.get('range');
-		const byteRange = parseByteRange(requestedRange, Number(share.size_bytes));
-		if (!byteRange) {
-			return new Response(null, {
-				status: 416,
-				headers: {
-					'Content-Range': `bytes */${share.size_bytes}`,
-					'Accept-Ranges': 'bytes',
-					'Cache-Control': 'private, no-store'
-				}
-			});
-		}
-
 		await recordDownload(env, token);
 
 		const client = createS3Client(env);
@@ -300,55 +150,26 @@ export const GET: RequestHandler = async ({
 			filename: share.filename
 		});
 
-		const upstreamAbort = new AbortController();
-		const abortFromClient = () => upstreamAbort.abort(request.signal.reason);
-		if (request.signal.aborted) {
-			abortFromClient();
-		} else {
-			request.signal.addEventListener('abort', abortFromClient, { once: true });
-		}
-
-		const responseLength = byteRange.end - byteRange.start + 1;
-		const responseHeaders = new Headers({
-			'Content-Type': share.content_type || 'application/octet-stream',
-			'Content-Length': String(responseLength),
-			'Accept-Ranges': 'bytes',
-			'Content-Disposition': contentDisposition(share.filename),
-			'Cache-Control': 'private, no-store'
-		});
-		if (requestedRange) {
-			responseHeaders.set(
-				'Content-Range',
-				`bytes ${byteRange.start}-${byteRange.end}/${share.size_bytes}`
-			);
-		}
-
 		await audit(env, {
 			ip,
 			action: 'download',
 			shareToken: token,
-			status: requestedRange ? 206 : 200,
+			status: 307,
 			detail: {
 				...(hasPassword ? { password_protected: true } : {}),
-				proxy: true,
-				native: true,
+				redirect: true,
 				range: requestedRange,
-				proxyRange: `bytes=${byteRange.start}-${byteRange.end}`,
-				chunkBytes: S3_PROXY_CHUNK_BYTES,
 				userAgent: request.headers.get('user-agent')?.slice(0, 200) ?? null
 			}
 		});
 
-		const responseBody = createChunkedS3Body({
-			token,
-			dlUrl,
-			range: byteRange,
-			baseHeaders: new Headers(),
-			abort: upstreamAbort
-		});
-		return new Response(responseBody, {
-			status: requestedRange ? 206 : 200,
-			headers: responseHeaders
+		return new Response(null, {
+			status: 307,
+			headers: {
+			Location: dlUrl,
+			'Cache-Control': 'private, no-store',
+			'X-Robots-Tag': 'noindex, nofollow'
+		}
 		});
 	} catch (err) {
 		console.error('[download] unexpected error', {
