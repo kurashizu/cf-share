@@ -14,7 +14,7 @@ import { isValidToken } from '@/lib/share/token';
  * GET /api/download/:token — bounded native streaming proxy.
  *
  * The whole handler runs inside the Cloudflare Worker compiled by
- * adapter-cloudflare. The object is proxied as sequential 8 MiB S3 Range GETs;
+ * adapter-cloudflare. The object is proxied as sequential 1 MiB S3 Range GETs;
  * the Worker never buffers or caches the file. A downstream disconnect aborts
  * the current chunk and no later chunk is requested.
  * Byte-range requests are validated and forwarded through the same bounded
@@ -44,8 +44,8 @@ function downloadJson(
 	});
 }
 
-const S3_PROXY_CHUNK_BYTES = 8 * 1024 * 1024;
-const DOWNSTREAM_IDLE_TIMEOUT_MS = 15_000;
+const S3_PROXY_CHUNK_BYTES = 1 * 1024 * 1024;
+const DOWNSTREAM_IDLE_TIMEOUT_MS = 3_000;
 
 interface ByteRange {
 	start: number;
@@ -84,10 +84,11 @@ function parseByteRange(header: string | null, size: number): ByteRange | null {
  *
  * A bounded upstream request is intentional: if the downstream disappears
  * without propagating cancellation through the Worker runtime, at most the
- * current 8 MiB S3 request can continue. The next chunk is only requested
+ * current 1 MiB S3 request can continue. The next chunk is only requested
  * after the downstream asks for more data.
  */
 function createChunkedS3Body(args: {
+	token: string;
 	dlUrl: string;
 	range: ByteRange;
 	baseHeaders: Headers;
@@ -108,6 +109,10 @@ function createChunkedS3Body(args: {
 		clearIdleTimer();
 		idleTimer = setTimeout(() => {
 			closed = true;
+			console.warn('[download-proxy] downstream idle timeout', {
+				token: args.token,
+				offset
+			});
 			args.abort.abort(new Error('downstream-idle-timeout'));
 			void reader?.cancel('downstream-idle-timeout');
 		}, DOWNSTREAM_IDLE_TIMEOUT_MS);
@@ -335,6 +340,7 @@ export const GET: RequestHandler = async ({
 		});
 
 		const responseBody = createChunkedS3Body({
+			token,
 			dlUrl,
 			range: byteRange,
 			baseHeaders: new Headers(),
