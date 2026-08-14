@@ -122,21 +122,21 @@ Browser ──PUT──► S3 (presigned URL)
   │
   ├── POST /api/upload/init     ──► Worker ──► D1 (quota check)
   ├── POST /api/upload/complete ──► Worker ──► D1 (mint token)
-  └── GET  /api/download/:token ──► Worker (native stream) ──► D1 (lookup) ──► presigned S3 GET ──► stream to client
+  └── GET  /api/download/:token ──► Worker (bounded native proxy) ──► D1 (lookup) ──► sequential 8 MiB S3 Range GETs ──► client
 
 Cleanup: cron (scheduled handler in custom-worker.ts) ──► D1 (find expired) ──► S3 (delete) ──► D1 (remove row)
 ```
 
 ## Gotchas
 
-- **Downloads stream at the native Worker layer.** The download GET handler
-  lives in `src/routes/api/download/[token]/+server.ts`, which fetches the
-  presigned S3 URL and returns `new Response(upstream.body, …)`. Because the
-  SvelteKit server is compiled straight into a Cloudflare Worker, this is a
-  plain Workers streaming passthrough — full length, `Content-Length` kept,
-  byte-range requests forwarded. The truncation bug we hit under OpenNext
-  (Next's node-server bridge dropping bytes on the HTTP/2 END_STREAM boundary)
-  cannot occur here.
+- **Downloads use a bounded native Worker proxy.** The download GET handler
+  lives in `src/routes/api/download/[token]/+server.ts`. It proxies the file
+  as sequential 8 MiB S3 Range GETs, preserving `Content-Length`,
+  `Content-Range`, and byte-range semantics without buffering or caching.
+  If the client disconnects, the current S3 request is aborted and the Worker
+  does not request another chunk. This bounds abandoned origin traffic to one
+  in-flight chunk.
+
 - **`lib/share/password.ts` uses Web Crypto** (SHA-256 + random salt), not
   Node `crypto`, so the auth path needs no `nodejs_compat` buffering.
 - **AWS SDK DOM polyfills** are installed by `lib/s3/polyfill.ts`, imported at

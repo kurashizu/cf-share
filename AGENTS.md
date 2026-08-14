@@ -58,11 +58,11 @@ Key layout: `uploads/{YYYY}/{MM}/{DD}/{share-token}/{filename}`
 All uploads go direct to S3 via presigned URL — Worker never sees upload
 bytes. Multipart upload used for files > 90 MB (50 MB parts).
 
-Downloads stream **natively in `src/routes/api/download/[token]/+server.ts`**:
-look up the share in D1, presign an S3 GET, fetch S3, and return
-`new Response(upstream.body)` with byte-range headers forwarded. This works
-because adapter-cloudflare compiles the whole server into the Worker — do NOT
-"fix" it by buffering the body or routing elsewhere.
+Downloads are proxied natively in `src/routes/api/download/[token]/+server.ts`:
+look up the share in D1, create a presigned S3 GET, and stream the object as
+sequential 8 MiB S3 Range requests. The Worker never buffers or caches the
+object. A downstream disconnect aborts the current S3 request and no next
+chunk is requested, bounding abandoned-origin traffic to one chunk.
 
 ## Limits
 
@@ -109,7 +109,9 @@ npm run db:migrate:remote
 - All UI in English, TypeScript strict mode, Tailwind 4.
 - Server-side validation on every API route; never trust the client.
 - All S3 interactions go through `lib/s3/*` — no scattered `S3Client` instances.
-- Downloading: keep the streaming GET in
-  `src/routes/api/download/[token]/+server.ts` (`new Response(upstream.body)`).
-  Never buffer the body (OOM on large files) and never add a node-server bridge.
+- Downloading: keep the streaming proxy in
+  `src/routes/api/download/[token]/+server.ts`. It must use bounded 8 MiB
+  Range fetches, never buffer the body, never cache it, and abort the current
+  S3 fetch when the downstream client disconnects. Never add a node-server
+  bridge.
 - Env: use `event.platform.env`; `getCloudflareContext()` (OpenNext) no longer exists.
