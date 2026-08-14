@@ -32,7 +32,7 @@ to short-lived presigned S3 URLs; file bytes do not pass through the Worker.
 | GET | `/admin` | `src/routes/admin/+page.svelte` | Admin panel (shares + audit log, JWT cookie) |
 | GET | `/admin/login` | `src/routes/admin/login/+page.svelte` | Admin login form |
 | GET | `/d/:token` | `src/routes/d/[token]/` | Download page (password prompt if protected) |
-| GET | `/p/:token` | `src/routes/p/[token]/+server.ts` | Proxy an unprotected file through the Worker (threshold-limited, supports Range) |
+| GET | `/p/:token` | `src/routes/p/[token]/+server.ts` | Proxy an unprotected small file through the Worker (threshold-limited) |
 | GET | `/api/download/:token` | `src/routes/api/download/[token]/+server.ts` | Authenticate and redirect to a presigned S3 URL; `?info=1` for JSON metadata |
 | POST | `/api/download/:token` | same | Verify password → return download URL |
 | POST | `/api/upload/init` | `+server.ts` | Reserve a presigned PUT URL (single or multipart) |
@@ -138,7 +138,7 @@ Cleanup: cron (scheduled handler in custom-worker.ts) ──► D1 (find expired
 
 - **Proxied links are deliberately narrow.** `/p/:token` only serves files at
   or below `PROXY_MAX_FILE_SIZE` (2 MiB by default) and rejects password-protected
-  shares. It streams the S3 body without buffering and forwards Range responses.
+  shares. It streams the complete S3 body without buffering and does not support Range.
 - **`lib/share/password.ts` uses Web Crypto** (SHA-256 + random salt), not
   Node `crypto`, so the auth path needs no `nodejs_compat` buffering.
 - **AWS SDK DOM polyfills** are installed by `lib/s3/polyfill.ts`, imported at

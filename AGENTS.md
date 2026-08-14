@@ -61,7 +61,7 @@ Normal downloads are authenticated redirects in `src/routes/api/download/[token]
 look up the share in D1, perform the password gate and audit, then return a
 short-lived 307 redirect to the presigned S3 URL. Small, unprotected files
 also have a `/p/:token` Worker-proxied link limited by `PROXY_MAX_FILE_SIZE`;
-that route streams the S3 body without buffering.
+that route streams the complete S3 body without buffering and does not support Range.
 
 ## Limits
 
@@ -113,6 +113,6 @@ npm run db:migrate:remote
 - Normal downloading uses the authenticated 307 redirect in
   `src/routes/api/download/[token]/+server.ts`; password verification happens
   before the redirect. The separate `/p/:token` route may proxy only
-  unprotected files at or below `PROXY_MAX_FILE_SIZE`, and must stream without
-  buffering, caching, or background reads.
+  unprotected files at or below `PROXY_MAX_FILE_SIZE`, streams the complete
+  object without Range support, buffering, caching, or background reads.
 - Env: use `event.platform.env`; the application runs on adapter-cloudflare.

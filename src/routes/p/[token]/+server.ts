@@ -24,8 +24,8 @@ function errorResponse(message: string, status: number): Response {
  * GET /p/:token — stream an eligible, unprotected small file through Worker.
  *
  * This endpoint is intentionally limited by PROXY_MAX_FILE_SIZE (2 MiB by
- * default). It does not accept passwords: protected shares must use the
- * normal authenticated S3 redirect flow.
+ * default). It does not accept passwords or Range requests: protected shares
+ * must use the normal authenticated S3 redirect flow.
  */
 export const GET: RequestHandler = async ({
 	request,
@@ -86,8 +86,7 @@ export const GET: RequestHandler = async ({
 		const output = await client.send(
 			new GetObjectCommand({
 				Bucket: share.bucket,
-				Key: share.s3_key,
-				Range: request.headers.get('range') ?? undefined
+				Key: share.s3_key
 			})
 		);
 
@@ -95,11 +94,9 @@ export const GET: RequestHandler = async ({
 			return errorResponse('File unavailable', 502);
 		}
 
-		const status = output.ContentRange ? 206 : 200;
 		const headers = new Headers({
 			'Cache-Control': 'private, no-store',
 			'X-Robots-Tag': 'noindex, nofollow',
-			'Accept-Ranges': 'bytes',
 			'Content-Disposition': contentDisposition(share.filename),
 			'Content-Type': output.ContentType || share.content_type
 		});
@@ -107,7 +104,6 @@ export const GET: RequestHandler = async ({
 		if (output.ContentLength !== undefined) {
 			headers.set('Content-Length', String(output.ContentLength));
 		}
-		if (output.ContentRange) headers.set('Content-Range', output.ContentRange);
 		if (output.ETag) headers.set('ETag', output.ETag);
 		if (output.LastModified) headers.set('Last-Modified', output.LastModified.toUTCString());
 
@@ -115,15 +111,14 @@ export const GET: RequestHandler = async ({
 			ip,
 			action: 'download',
 			shareToken: token,
-			status,
+			status: 200,
 			detail: {
 				proxy: true,
-				range: request.headers.get('range'),
 				userAgent: request.headers.get('user-agent')?.slice(0, 200) ?? null
 			}
 		});
 
-		return new Response(output.Body.transformToWebStream(), { status, headers });
+		return new Response(output.Body.transformToWebStream(), { status: 200, headers });
 	} catch (err) {
 		const status = (err as { $metadata?: { httpStatusCode?: number } }).$metadata
 			?.httpStatusCode;
