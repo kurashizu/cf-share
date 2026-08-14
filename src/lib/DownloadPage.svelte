@@ -217,7 +217,7 @@
 			<div class="panel">
 				<div class="panel-head">
 					<span class="tag">›</span> file_info
-					<span class="meta">{info.download_count} downloads · cache HIT</span>
+					<span class="meta">{info.download_count} downloads · direct S3</span>
 				</div>
 				<div class="panel-body">
 					<div class="download-filename">{info.filename}</div>
@@ -225,7 +225,7 @@
 						<dt>size</dt><dd>{formatBytes(info.size_bytes)}</dd>
 						<dt>type</dt><dd>{info.content_type || '—'}</dd>
 						<dt>expires</dt><dd>{formatRelativeTime(info.expires_at)}</dd>
-						<dt>cache</dt><dd class="accent">edge HIT · 0 S3 calls</dd>
+						<dt>delivery</dt><dd class="accent">direct S3 stream</dd>
 					</dl>
 					<hr class="divider">
 					<button class="btn primary" style="width:100%; padding:11px;" onclick={download}>

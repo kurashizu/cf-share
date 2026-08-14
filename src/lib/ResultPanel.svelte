@@ -131,7 +131,7 @@
 					<dt>elapsed</dt><dd>{elapsed.toFixed(1)}s</dd>
 					<dt>expires</dt><dd>{formatRemaining(remainingMs)}</dd>
 					<dt>password</dt><dd>{password || '—'}</dd>
-					<dt>cache</dt><dd class="success">prefetched (30 d TTL)</dd>
+					<dt>delivery</dt><dd class="success">direct S3 stream</dd>
 				</dl>
 			</div>
 		</div>

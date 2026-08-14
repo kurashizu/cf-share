@@ -9,7 +9,6 @@ import { getClientIp } from '@/lib/util/ip';
 import { audit } from '@/lib/util/audit';
 import { contentDisposition } from '@/lib/util/content-disposition';
 import { isValidToken } from '@/lib/share/token';
-import { matchDownloadCache, downloadCacheKey } from '@/lib/cache/download-cache';
 
 /**
  * GET /api/download/:token — native streaming download.
@@ -73,7 +72,7 @@ export const GET: RequestHandler = async ({
 			return downloadJson(
 				{ error: 'Not found' },
 				404,
-				{ 'Cache-Control': 'public, max-age=60' }
+				{ 'Cache-Control': 'no-store' }
 			);
 		}
 
@@ -89,7 +88,7 @@ export const GET: RequestHandler = async ({
 			return downloadJson(
 				{ error: 'Not found' },
 				404,
-				{ 'Cache-Control': 'public, max-age=60' }
+				{ 'Cache-Control': 'no-store' }
 			);
 		}
 
@@ -141,32 +140,7 @@ export const GET: RequestHandler = async ({
 			}
 		}
 
-		// ── Cache API pre-warm hit? Skip S3 entirely. ──
-		// Cache key is the bare `/api/download/{token}` URL regardless of
-		// `?password=` (the password gate happens above; anyone who reaches
-		// here already has the password, and the URL itself is the secret).
-		const cached = await matchDownloadCache(token);
-		if (cached) {
-			await recordDownload(env, token);
-			await audit(env, {
-				ip,
-				action: 'download',
-				shareToken: token,
-				status: cached.status,
-				detail: {
-					...(hasPassword ? { password_protected: true } : {}),
-					fromCache: true,
-					...(request.headers.get('range')
-						? { range: request.headers.get('range') }
-						: {}),
-					cachedContentLength: cached.headers.get('content-length'),
-					cachedContentRange: cached.headers.get('content-range'),
-					userAgent: request.headers.get('user-agent')?.slice(0, 200) ?? null
-				}
-			});
-			return cached;
-		}
-
+		const requestedRange = request.headers.get('range');
 		await recordDownload(env, token);
 
 		const client = createS3Client(env);
@@ -180,12 +154,18 @@ export const GET: RequestHandler = async ({
 
 		// Forward byte-range headers so paused/resuming downloads work.
 		const upstreamHeaders = new Headers();
-		for (const h of ['range', 'if-range', 'if-none-match', 'if-modified-since']) {
+		for (const h of ['if-range', 'if-none-match', 'if-modified-since']) {
 			const v = request.headers.get(h);
 			if (v) upstreamHeaders.set(h, v);
 		}
+		if (requestedRange) {
+			upstreamHeaders.set('range', requestedRange);
+		}
 
-		const upstream = await fetch(dlUrl, { headers: upstreamHeaders });
+		const upstream = await fetch(dlUrl, {
+			headers: upstreamHeaders,
+			signal: request.signal
+		});
 		if (!upstream.ok && upstream.status !== 206 && upstream.status !== 304) {
 			console.error('[download] S3 proxy request failed', {
 				token,
@@ -209,7 +189,7 @@ export const GET: RequestHandler = async ({
 			const v = upstream.headers.get(h);
 			if (v) responseHeaders.set(h, v);
 		}
-		responseHeaders.set('Cache-Control', 'public, max-age=86400, stale-while-revalidate=2592000');
+		responseHeaders.set('Cache-Control', 'private, no-store');
 		responseHeaders.set('Content-Disposition', contentDisposition(share.filename));
 
 		await audit(env, {
@@ -221,80 +201,17 @@ export const GET: RequestHandler = async ({
 				...(hasPassword ? { password_protected: true } : {}),
 				proxy: true,
 				native: true,
-				...(request.headers.get('range')
-					? { range: request.headers.get('range') }
-					: {}),
+				range: requestedRange,
 				upstreamContentLength: upstream.headers.get('content-length'),
 				upstreamContentRange: upstream.headers.get('content-range'),
 				userAgent: request.headers.get('user-agent')?.slice(0, 200) ?? null
 			}
 		});
 
-		// Cache-aside: cache-hit the *next* viewer so it doesn't have to
-		// round-trip through S3 again. `caches.default.put` consumes the
-		// body stream, so we tee() upstream.body and give one branch to
-		// the current viewer and the other to the cache fill. Cache key
-		// is the bare internal URL (same as the prefetch path).
-		//
-		// Limited to ≤150 MB so the fill fits inside the 30 s waitUntil
-		// budget on every plan. Larger files just rely on CF HTTP edge
-		// cache (24 h max-age) — and on the next upload they get a fresh
-		// prefetch once the cache is empty again.
-		let responseBody: ReadableStream<Uint8Array> | null = upstream.body;
-		if (
-			upstream.body &&
-			Number(share.size_bytes) <= 150 * 1024 * 1024
-		) {
-			try {
-				const [forViewer, forCache] = upstream.body.tee();
-				responseBody = forViewer;
-				const cachedHeaders = new Headers(responseHeaders);
-				cachedHeaders.set(
-					'Cache-Control',
-					'public, max-age=2592000, stale-while-revalidate=2592000'
-				);
-				const cachedResponse = new Response(forCache, {
-					status: upstream.status,
-					headers: cachedHeaders
-				});
-				const waitUntil = (
-					platform!.context as {
-						waitUntil: (p: Promise<unknown>) => void;
-					}
-				).waitUntil.bind(platform!.context);
-				waitUntil(
-					(async () => {
-						try {
-							const cache = (
-								caches as unknown as {
-									default: Cache;
-								}
-							).default;
-							await cache.put(
-								downloadCacheKey(token),
-								cachedResponse
-							);
-						} catch (e) {
-							console.warn('[cache-aside] fill failed', {
-								token,
-								err:
-									e instanceof Error
-										? e.message
-										: String(e)
-							});
-						}
-					})()
-				);
-			} catch (e) {
-				console.warn('[cache-aside] tee failed; falling back to direct passthrough', {
-					token,
-					err: e instanceof Error ? e.message : String(e)
-				});
-			}
-		}
-
-		// Native streaming passthrough — canonical CF Worker pattern.
-		return new Response(responseBody ?? upstream.body, {
+		// Native streaming passthrough — exactly one S3 GET per download request.
+		// The request signal cancels the upstream fetch when the client disconnects;
+		// there is no background reader that can continue consuming S3 afterward.
+		return new Response(upstream.body, {
 			status: upstream.status,
 			headers: responseHeaders
 		});

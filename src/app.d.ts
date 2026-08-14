@@ -6,7 +6,6 @@ declare global {
 			env: CloudflareEnv;
 			context: ExecutionContext;
 			ctx: ExecutionContext;
-			caches: CacheStorage;
 			cf: IncomingRequestCfProperties;
 		}
 	}
