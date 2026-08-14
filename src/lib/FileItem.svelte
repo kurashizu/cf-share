@@ -34,8 +34,8 @@
 		return () => clearInterval(t);
 	});
 
-	const sizeKB = (file.size / 1024).toFixed(1);
-	const isWorking = uploadState.kind === 'preparing' || uploadState.kind === 'uploading';
+	const sizeKB = $derived((file.size / 1024).toFixed(1));
+	const isWorking = $derived(uploadState.kind === 'preparing' || uploadState.kind === 'uploading');
 
 	function fmtBytes(bytes: number): string {
 		if (bytes === 0) return '0 B';
@@ -86,7 +86,7 @@
 					: uploadState.kind === 'preparing'
 						? '8%'
 						: '0%'}"
-		/>
+		></div>
 	</div>
 	<div
 		class="phase-meta {uploadState.kind === 'success'

@@ -12,7 +12,7 @@ const config = {
 		// The API is called by third-party clients (curl, sharetube) with
 		// arbitrary Origin/Referer, so state-changing requests do not enforce
 		// same-origin CSRF checks.
-		csrf: { checkOrigin: false }
+		csrf: { trustedOrigins: ['*'] }
 	}
 };
 

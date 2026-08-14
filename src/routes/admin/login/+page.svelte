@@ -84,7 +84,6 @@
 						class="input"
 						type="password"
 						autocomplete="current-password"
-						autofocus
 						required
 						disabled={submitting}
 					/>

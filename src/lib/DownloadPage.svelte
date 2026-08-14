@@ -195,7 +195,6 @@
 							bind:value={password}
 							onkeydown={(e) => { if (e.key === 'Enter') downloadWithPassword(); }}
 							placeholder="enter password"
-							autofocus
 						/>
 						{#if errorMsg}
 							<p class="download-error">{errorMsg}</p>

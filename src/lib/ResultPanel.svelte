@@ -6,6 +6,7 @@
 		shareToken,
 		shareUrl,
 		fullUrl,
+		proxyUrl,
 		expiresAt,
 		filename,
 		size,
@@ -15,6 +16,7 @@
 		shareToken: string;
 		shareUrl: string;
 		fullUrl: string;
+		proxyUrl: string | null;
 		expiresAt: number;
 		filename: string;
 		size: number;
@@ -24,11 +26,15 @@
 
 	let copied = $state(false);
 	let copiedDirect = $state(false);
+	let copiedProxied = $state(false);
 	let now = $state(Date.now());
 	let canvasRef = $state<HTMLCanvasElement | null>(null);
 
 	const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
-	const directDownloadUrl = `${baseUrl}/api/download/${shareToken}${password ? `?password=${encodeURIComponent(password)}` : ''}`;
+	const directDownloadUrl = $derived(
+		`${baseUrl}/api/download/${shareToken}${password ? `?password=${encodeURIComponent(password)}` : ''}`
+	);
+	const proxiedDownloadUrl = $derived(proxyUrl ? `${baseUrl}${proxyUrl}` : null);
 
 	onMount(() => {
 		const t = setInterval(() => (now = Date.now()), 1000);
@@ -71,8 +77,8 @@
 		setTimeout(() => setter(false), 1500);
 	}
 
-	const remainingMs = Math.max(0, expiresAt - now);
-	const elapsed = (now - startedAt) / 1000;
+	const remainingMs = $derived(Math.max(0, expiresAt - now));
+	const elapsed = $derived((now - startedAt) / 1000);
 
 	function formatRemaining(ms: number): string {
 		if (ms <= 0) return 'expired';
@@ -116,6 +122,11 @@
 					>
 						{copiedDirect ? 'Copied ✓' : 'Copy direct link'}
 					</button>
+					{#if proxiedDownloadUrl}
+						<button class="btn outline" onclick={(e) => onCopy(proxiedDownloadUrl!, (v) => (copiedProxied = v), e.currentTarget)}>
+							{copiedProxied ? 'Copied ✓' : 'COPY PROXIED LINK'}
+						</button>
+					{/if}
 					<button class="btn outline" onclick={() => window.location.reload()}>New upload</button>
 				</div>
 

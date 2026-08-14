@@ -25,6 +25,7 @@ Env is read via `event.platform.env` (see `src/app.d.ts` for `App.Platform`).
 | GET | `/admin/login` | Admin login form |
 | GET | `/d/:token` | Download page (HTML) |
 | GET | `/api/download/:token` | Authenticate and redirect to a presigned S3 URL (`?info=1` returns metadata) |
+| GET | `/p/:token` | Proxy an unprotected file through the Worker when at or below `PROXY_MAX_FILE_SIZE` |
 | POST | `/api/download/:token` | Password verification |
 | POST | `/api/upload/init` | Reserve presigned PUT URL (admin auth skips all quotas) |
 | POST | `/api/upload/resume` | Re-sign missing parts for interrupted multipart upload |
@@ -56,11 +57,11 @@ Key layout: `uploads/{YYYY}/{MM}/{DD}/{share-token}/{filename}`
 All uploads go direct to S3 via presigned URL — Worker never sees upload
 bytes. Multipart upload used for files > 90 MB (50 MB parts).
 
-Downloads are authenticated redirects in `src/routes/api/download/[token]/+server.ts`:
+Normal downloads are authenticated redirects in `src/routes/api/download/[token]/+server.ts`:
 look up the share in D1, perform the password gate and audit, then return a
-short-lived 307 redirect to the presigned S3 URL. File bytes never pass
-through the Worker, so a disconnected client closes its S3 connection
-directly. There is no cache, buffering, proxy stream, or background read.
+short-lived 307 redirect to the presigned S3 URL. Small, unprotected files
+also have a `/p/:token` Worker-proxied link limited by `PROXY_MAX_FILE_SIZE`;
+that route streams the S3 body without buffering.
 
 ## Limits
 
@@ -68,6 +69,7 @@ directly. There is no cache, buffering, proxy stream, or background read.
 - TTL: 5 min to 7 days (default 24h)
 - Per-IP daily: 20 GB / 100 files (admin bypasses)
 - S3 pool: 100 GB total (admin bypasses)
+- Proxied link threshold: 2 MiB by default (`PROXY_MAX_FILE_SIZE`), unprotected files only
 - Rate limits: 30 init / 30 complete / 60 download / 30 lookup per 60s (admin bypasses)
 - Presigned PUT URL TTL: 1 hour (multipart uploads for large files)
 - Presigned GET URL TTL: remaining share TTL, capped at 7 days by SigV4
@@ -108,8 +110,9 @@ npm run db:migrate:remote
 - All UI in English, TypeScript strict mode, Tailwind 4.
 - Server-side validation on every API route; never trust the client.
 - All S3 interactions go through `lib/s3/*` — no scattered `S3Client` instances.
-- Downloading: keep the authenticated 307 redirect in
-  `src/routes/api/download/[token]/+server.ts`. The Worker must not proxy,
-  buffer, cache, or background-read file bytes. Password verification happens
-  before the redirect.
+- Normal downloading uses the authenticated 307 redirect in
+  `src/routes/api/download/[token]/+server.ts`; password verification happens
+  before the redirect. The separate `/p/:token` route may proxy only
+  unprotected files at or below `PROXY_MAX_FILE_SIZE`, and must stream without
+  buffering, caching, or background reads.
 - Env: use `event.platform.env`; the application runs on adapter-cloudflare.

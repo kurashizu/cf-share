@@ -1,5 +1,6 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
+import { proxyMaxFileSize } from '@/lib/config/proxy';
 
 export const GET: RequestHandler = async ({ platform }) => {
 	const env = platform!.env;
@@ -25,7 +26,8 @@ export const GET: RequestHandler = async ({ platform }) => {
 				maxFileSize: env.MAX_FILE_SIZE,
 				maxShareTtl: env.MAX_SHARE_TTL,
 				maxDailyBytesPerIp: env.MAX_DAILY_BYTES_PER_IP,
-				maxDailyCountPerIp: env.MAX_DAILY_COUNT_PER_IP
+				maxDailyCountPerIp: env.MAX_DAILY_COUNT_PER_IP,
+				proxyMaxFileSize: proxyMaxFileSize(env)
 			}
 		});
 	} catch (err) {

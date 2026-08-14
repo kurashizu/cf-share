@@ -13,6 +13,7 @@ import { audit } from '@/lib/util/audit';
 import { createShare, incrementQuota, readQuota } from '@/lib/share/store';
 import { hashPassword, isValidPassword } from '@/lib/share/password';
 import { requestIsAuthorized } from '@/lib/admin/auth';
+import { canProxyFile } from '@/lib/config/proxy';
 
 interface CompleteBody {
 	mode?: unknown;
@@ -32,6 +33,7 @@ interface CompleteResponse {
 	shareToken: string;
 	shareUrl: string;
 	fullUrl: string;
+	proxyUrl: string | null;
 	expiresAt: number;
 }
 
@@ -412,6 +414,7 @@ async function handleComplete(
 			shareToken: token,
 			shareUrl: `/d/${token}`,
 			fullUrl: `${origin}/d/${token}`,
+			proxyUrl: canProxyFile(env, size, !!passwordHash) ? `/p/${token}` : null,
 			expiresAt
 		};
 		return json(response);
@@ -572,6 +575,7 @@ async function handleComplete(
 		shareToken: token,
 		shareUrl: `/d/${token}`,
 		fullUrl: `${origin}/d/${token}`,
+		proxyUrl: canProxyFile(env, size, !!passwordHash) ? `/p/${token}` : null,
 		expiresAt
 	};
 	return json(response);

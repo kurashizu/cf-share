@@ -31,6 +31,7 @@
 		shareToken: string;
 		shareUrl: string;
 		fullUrl: string;
+		proxyUrl: string | null;
 		expiresAt: number;
 		filename: string;
 		size: number;
@@ -91,11 +92,11 @@
 		omitCredentials?: boolean;
 	} = $props();
 
-	const fetchOpts: RequestInit = omitCredentials ? { credentials: 'omit' } : {};
+	const fetchOpts = $derived<RequestInit>(omitCredentials ? { credentials: 'omit' } : {});
 
 	let active = $state<ActiveUpload | null>(null);
 	let completed = $state<CompletedUpload | null>(null);
-	let ttl = $state(ttlPresets[4]?.value ?? 86400); // default 24h
+	let ttl = $state(86400); // default 24h
 	let password = $state('');
 	let cancelledRef = $state(false);
 	let isDragActive = $state(false);
@@ -405,6 +406,7 @@
 				shareToken: string;
 				shareUrl: string;
 				fullUrl: string;
+				proxyUrl: string | null;
 				expiresAt: number;
 			};
 
@@ -414,6 +416,7 @@
 				shareToken: data.shareToken,
 				shareUrl: data.shareUrl,
 				fullUrl: data.fullUrl,
+				proxyUrl: data.proxyUrl,
 				expiresAt: data.expiresAt,
 				filename: file.name,
 				size: file.size,
@@ -618,6 +621,7 @@
 				shareToken={completed.shareToken}
 				shareUrl={completed.shareUrl}
 				fullUrl={completed.fullUrl}
+				proxyUrl={completed.proxyUrl}
 				expiresAt={completed.expiresAt}
 				filename={completed.filename}
 				size={completed.size}

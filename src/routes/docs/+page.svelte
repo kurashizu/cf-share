@@ -105,7 +105,9 @@
 		</h3>
 		<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-3">
 			Finalizes the upload and mints a share token. Returns{" "}
-			<code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">{"{shareToken, shareUrl, fullUrl, expiresAt}"}</code>.
+			<code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">{"{shareToken, shareUrl, fullUrl, proxyUrl, expiresAt}"}</code>.{" "}
+			<code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">proxyUrl</code> is non-null only for unprotected files at or below the{" "}
+			<code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">PROXY_MAX_FILE_SIZE</code> threshold (2 MiB by default).
 		</p>
 		<div class="overflow-x-auto">
 			<table class="w-full text-sm border-collapse">
@@ -164,6 +166,14 @@
 			After the share/password checks, the Worker returns a short-lived <code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">307</code> redirect to a presigned S3 URL. File bytes go directly from S3 to the client; Range headers are handled by S3. Append{" "}
 			<code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">?info=1</code> for JSON metadata or{" "}
 			<code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">?password=X</code> for protected shares.
+		</p>
+
+		<h3 class="text-xl font-semibold mt-6 mb-3 text-neutral-800 dark:text-neutral-100">
+			<code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">GET /p/:token</code> — Proxied small-file link
+		</h3>
+		<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-2">
+			Streams an unprotected file through the Worker when its size is at or below{" "}
+			<code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">PROXY_MAX_FILE_SIZE</code> (2 MiB by default). Supports byte-range requests. Password-protected and larger files return 404; use the normal download flow instead.
 		</p>
 
 		<h3 class="text-xl font-semibold mt-6 mb-3 text-neutral-800 dark:text-neutral-100">
