@@ -2,10 +2,8 @@
 
 A minimal "share a file" web app on Cloudflare Workers + **SvelteKit**.
 Files are **uploaded** directly to S3-compatible storage via presigned URLs —
-the Worker never sees upload bytes. **Downloads** are streamed natively in the
-Worker — the SvelteKit server compiles straight to a Cloudflare Worker via
-`@sveltejs/adapter-cloudflare`, so there is no intermediate node-server bridge
-and the streaming proxy is the plain, reliable Workers pattern.
+the Worker never sees upload bytes. **Downloads** are authenticated 307 redirects
+to short-lived presigned S3 URLs; file bytes do not pass through the Worker.
 
 - **Production URL**: https://share.krsz.in (see `lib/config/app.ts`)
 - **Worker URL**: https://cf-share.kurashizu123.workers.dev
@@ -34,7 +32,7 @@ and the streaming proxy is the plain, reliable Workers pattern.
 | GET | `/admin` | `src/routes/admin/+page.svelte` | Admin panel (shares + audit log, JWT cookie) |
 | GET | `/admin/login` | `src/routes/admin/login/+page.svelte` | Admin login form |
 | GET | `/d/:token` | `src/routes/d/[token]/` | Download page (password prompt if protected) |
-| GET | `/api/download/:token` | `src/routes/api/download/[token]/+server.ts` | Stream file bytes from S3 natively (supports Range); `?info=1` for JSON metadata |
+| GET | `/api/download/:token` | `src/routes/api/download/[token]/+server.ts` | Authenticate and redirect to a presigned S3 URL; `?info=1` for JSON metadata |
 | POST | `/api/download/:token` | same | Verify password → return download URL |
 | POST | `/api/upload/init` | `+server.ts` | Reserve a presigned PUT URL (single or multipart) |
 | POST | `/api/upload/resume` | `+server.ts` | Re-sign missing multipart parts |

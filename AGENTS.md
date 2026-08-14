@@ -26,7 +26,7 @@ Env is read via `event.platform.env` (see `src/app.d.ts` for `App.Platform`).
 | GET | `/admin` | Admin panel (JWT cookie set at `/admin/login`) |
 | GET | `/admin/login` | Admin login form |
 | GET | `/d/:token` | Download page (HTML) |
-| GET | `/api/download/:token` | Stream file bytes from S3 (native, supports Range) |
+| GET | `/api/download/:token` | Authenticate and redirect to a presigned S3 URL (`?info=1` returns metadata) |
 | POST | `/api/download/:token` | Password verification |
 | POST | `/api/upload/init` | Reserve presigned PUT URL (admin auth skips all quotas) |
 | POST | `/api/upload/resume` | Re-sign missing parts for interrupted multipart upload |
@@ -72,6 +72,7 @@ directly. There is no cache, buffering, proxy stream, or background read.
 - S3 pool: 100 GB total (admin bypasses)
 - Rate limits: 30 init / 30 complete / 60 download / 30 lookup per 60s (admin bypasses)
 - Presigned PUT URL TTL: 1 hour (multipart uploads for large files)
+- Presigned GET URL TTL: remaining share TTL, capped at 7 days by SigV4
 - Resume: client tracks parts in localStorage, calls `/api/upload/resume` to re-sign missing parts
 
 ## Token Format

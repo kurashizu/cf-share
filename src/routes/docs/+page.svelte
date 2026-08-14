@@ -158,11 +158,10 @@
 		</p>
 
 		<h3 class="text-xl font-semibold mt-6 mb-3 text-neutral-800 dark:text-neutral-100">
-			<code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">GET /api/download/:token</code> — Stream file from S3
+			<code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">GET /api/download/:token</code> — Authenticate and redirect to S3
 		</h3>
 		<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-2">
-			Streams the object bytes through the Worker natively (the SvelteKit server compiles
-			straight to a Cloudflare Worker), supporting byte-range requests. Append{" "}
+			After the share/password checks, the Worker returns a short-lived <code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">307</code> redirect to a presigned S3 URL. File bytes go directly from S3 to the client; Range headers are handled by S3. Append{" "}
 			<code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">?info=1</code> for JSON metadata or{" "}
 			<code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">?password=X</code> for protected shares.
 		</p>
@@ -279,7 +278,7 @@
 					</tr>
 					<tr class="border-b border-neutral-200 dark:border-neutral-800">
 						<td class="py-2 pr-4">Presigned GET expiry</td>
-						<td class="py-2">5 min</td>
+						<td class="py-2">Remaining share TTL, capped at 7 days by S3 SigV4. Admin “no expiry” shares receive a maximum 7-day URL.</td>
 					</tr>
 					<tr>
 						<td class="py-2 pr-4">Rate limits (anon, 60s)</td>
