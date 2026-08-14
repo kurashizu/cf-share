@@ -8,7 +8,6 @@ to short-lived presigned S3 URLs; file bytes do not pass through the Worker.
 - **Production URL**: https://share.krsz.in (see `lib/config/app.ts`)
 - **Worker URL**: https://cf-share.kurashizu123.workers.dev
 - **Stack**: SvelteKit 5 + Vite + `@sveltejs/adapter-cloudflare` + Cloudflare D1
-  (previous stack was Next.js 16 + OpenNext; migrated summer 2025)
 - **S3 endpoint**: https://s3api.022025.xyz (configured via `S3_ENDPOINT`)
 
 ## Limits

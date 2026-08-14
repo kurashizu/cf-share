@@ -1,6 +1,6 @@
 /**
  * End-to-end single-PUT complete test against the deployment.
- * Verifies the HeadObject try/catch fix in app/api/upload/complete/route.ts.
+ * Verifies the single-PUT upload → complete flow against the current SvelteKit Worker.
  *
  * Run:
  *   BASE_URL=https://share.krsz.in node scripts/test_zip_complete.mjs

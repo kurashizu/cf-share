@@ -1,7 +1,7 @@
 [project]
 name = "cf-share"
 version = "0.0.0"
-description = "cf-share monorepo (Next.js worker + sharetube TUI)"
+description = "cf-share workspace with SvelteKit Worker + sharetube TUI"
 requires-python = ">=3.11"
 
 # Pulling the TUI as a dependency from the workspace makes its console

@@ -15,8 +15,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "cf-share",
-  // Adapter build target (SvelteKit `/api/download/:token` GET streams the
-  // file natively at the Worker layer — no OpenNext node-server bridge).
+  // SvelteKit adapter build target for the Worker.
   "main": "./build/worker.js",
   "compatibility_date": "2026-07-09",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],

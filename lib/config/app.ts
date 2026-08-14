@@ -2,9 +2,8 @@
  * Single source of truth for cf-share's externally-visible hostnames.
  *
  * Why a dedicated config module:
- *   - Both the Worker runtime (wrangler.jsonc vars) and the Next.js
- *     frontend need to agree on the public app URL — see
- *     `app/docs/page.tsx` for curl examples that users copy-paste.
+ *   - The SvelteKit docs page and sharetube client need to agree on the
+ *     public app URL.
  *   - Centralising these here means renaming the domain (or adding a
  *     staging alias) is a single-file change instead of a hunt across
  *     docs, scripts, and source.

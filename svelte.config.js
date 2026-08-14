@@ -9,9 +9,9 @@ const config = {
 		alias: {
 			'@': './'
 		},
-		// cf-share's API is called by third-party clients (curl, sharetube)
-		// with arbitrary Origin/Referer. Preserve the Next.js behaviour of
-		// not enforcing same-origin on state-changing requests.
+		// The API is called by third-party clients (curl, sharetube) with
+		// arbitrary Origin/Referer, so state-changing requests do not enforce
+		// same-origin CSRF checks.
 		csrf: { checkOrigin: false }
 	}
 };

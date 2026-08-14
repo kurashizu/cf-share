@@ -8,9 +8,7 @@ Minimal file-sharing web app. Visitors upload a single file and receive a
 short-lived download link. No login required.
 
 **Stack: SvelteKit 5 + `@sveltejs/adapter-cloudflare`** (the server compiles
-straight to a Cloudflare Worker — no node-server bridge). Previously Next.js
-16 + OpenNext; migrated because OpenNext's node-server pipeline truncated
-proxied download bodies.
+straight to a Cloudflare Worker with no node-server bridge).
 
 Live at https://share.krsz.in (see `lib/config/app.ts` for the authoritative value)
 
@@ -114,4 +112,4 @@ npm run db:migrate:remote
   `src/routes/api/download/[token]/+server.ts`. The Worker must not proxy,
   buffer, cache, or background-read file bytes. Password verification happens
   before the redirect.
-- Env: use `event.platform.env`; `getCloudflareContext()` (OpenNext) no longer exists.
+- Env: use `event.platform.env`; the application runs on adapter-cloudflare.
