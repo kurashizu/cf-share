@@ -109,108 +109,8 @@ body {
 }
 
 /* ════════════════════════════════════════════════════════════════════════
-   NAV — taller, more padding, larger font (sharetube header-style)
-   ════════════════════════════════════════════════════════════════════════ */
-.nav {
-	border-bottom: 1px solid var(--border);
-	background: rgba(21, 16, 42, 0.85);
-	backdrop-filter: blur(10px);
-	padding: 14px 24px;            /* up from 10 16 */
-	display: flex;
-	align-items: center;
-	gap: 20px;
-	font-family: var(--mono);
-	font-size: 15px;              /* up from 13 */
-	position: sticky;
-	top: 0;
-	z-index: 10;
-}
-.nav-brand {
-	display: flex;
-	align-items: center;
-	gap: 12px;
-	font-weight: 600;
-	color: var(--text);
-	text-decoration: none;
-	transition: color var(--t-fast) var(--ease);
-	font-size: 16px;
-}
-.nav-brand:hover { color: var(--accent); }
-.nav-brand .dot {
-	width: 12px; height: 12px;    /* up from 10 */
-	border-radius: 50%;
-	background: var(--accent);
-	box-shadow: 0 0 8px var(--accent-glow);
-	animation: breathe 2.5s ease-in-out infinite;
-}
-.nav-status {
-	color: var(--text-dim);
-	margin-left: auto;
-	font-size: 14px;              /* up from 12 */
-	display: flex;
-	align-items: center;
-	gap: 10px;
-}
-.nav-status .pill {
-	display: inline-flex;
-	align-items: center;
-	gap: 8px;
-	padding: 4px 14px;            /* up from 2 10 */
-	border: 1px solid var(--border);
-	border-radius: 12px;
-	color: var(--text-dim);
-	background: var(--surface);
-	font-size: 13px;
-}
-.nav-status .pill::before {
-	content: '';
-	width: 7px; height: 7px;      /* up from 6 */
-	border-radius: 50%;
-	background: var(--accent);
-	animation: breathe 1.8s ease-in-out infinite;
-}
-.nav-links { display: flex; gap: 4px; }
-.nav-links a {
-	color: var(--text-dim);
-	text-decoration: none;
-	padding: 7px 16px;            /* up from 5 12 */
-	border-radius: var(--radius-sm);
-	transition: all var(--t-fast) var(--ease);
-	position: relative;
-	font-size: 14px;
-}
-.nav-links a::after {
-	content: '';
-	position: absolute;
-	left: 16px; right: 16px; bottom: 3px;
-	height: 1px;
-	background: var(--accent);
-	transform: scaleX(0);
-	transform-origin: center;
-	transition: transform var(--t-base) var(--ease);
-}
-.nav-links a:hover { color: var(--text); background: var(--surface-2); }
-.nav-links a:hover::after,
-.nav-links a.active::after { transform: scaleX(1); }
-.nav-links a.active { color: var(--accent); }
-
-/* ════════════════════════════════════════════════════════════════════════
-   BRAND LOGO — favicon.svg IS the logo
-   ════════════════════════════════════════════════════════════════════════ */
-.brand-logo {
-	width: 36px; height: 36px;
-	border-radius: 8px;
-	overflow: hidden;
-	flex-shrink: 0;
-	transition: transform var(--t-base) var(--ease-spring),
-	            box-shadow var(--t-base) var(--ease);
-	box-shadow: var(--shadow-card);
-}
-.brand-logo img { width: 100%; height: 100%; display: block; }
-.brand-logo:hover {
-	transform: rotate(-6deg) scale(1.08);
-	box-shadow: var(--shadow-card-hover);
-}
+   HERO LOGO — favicon.svg IS the logo (cloud + K on dark rounded square)
+   �═══════════════════════════════════════════════════════════════════════ */
 
 .hero-logo {
 	width: 72px; height: 72px;
@@ -310,15 +210,18 @@ body {
    ════════════════════════════════════════════════════════════════════════ */
 .controls {
 	display: grid;
-	grid-template-columns: 100px 1fr 90px 1fr;   /* one row: expires + password */
-	gap: 10px 12px;
+	grid-template-columns: 100px 1fr 100px 2fr;   /* select:input = 1:2 */
+	gap: 14px 28px;                              /* column gap = 28px (more whitespace) */
 	align-items: center;
 	margin-bottom: 20px;
 }
 .controls label {
 	color: var(--text-dim);
 	font-family: var(--mono);
-	font-size: 14px;
+	font-size: 12px;
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	font-weight: 600;
 }
 .input, .select {
 	width: 100%;
@@ -885,20 +788,6 @@ pre code {
 	body { font-size: 14px; }
 	.wrap { padding: 20px 14px 48px; }
 
-	.nav { padding: 10px 14px; gap: 12px; flex-wrap: wrap; }
-	.nav-status { font-size: 12px; gap: 8px; }
-	.nav-status .pill { padding: 2px 10px; font-size: 11px; }
-	.nav-links {
-		display: flex;
-		gap: 4px;
-		order: 3;
-		width: 100%;
-		overflow-x: auto;
-		padding-bottom: 4px;
-		scrollbar-width: thin;
-	}
-	.nav-links::-webkit-scrollbar { height: 2px; }
-	.nav-links a { padding: 6px 12px; font-size: 12px; white-space: nowrap; }
 
 	.hero { padding: 20px 0 28px; gap: 14px; }
 	.hero-logo { width: 52px; height: 52px; }
@@ -910,7 +799,7 @@ pre code {
 	.panel-head { padding: 10px 14px; font-size: 12px; min-height: 40px; }
 
 	.controls { grid-template-columns: 1fr; gap: 4px 0; }
-	.controls label { font-size: 12px; margin-top: 6px; }
+	.controls label { font-size: 11px; margin-top: 6px; }
 	.controls label:first-of-type { margin-top: 0; }
 
 	.dropzone { padding: 32px 18px; }
