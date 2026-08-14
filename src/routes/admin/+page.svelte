@@ -271,37 +271,15 @@
 <main class="wrap">
 
 	<div class="hero">
-	<div class="hero-logo"><img src="/favicon.svg" alt="KRSZ Share" /></div>
+		<div class="hero-logo"><img src="/favicon.svg" alt="KRSZ Share" /></div>
 		<div>
 			<h1>admin_panel</h1>
-			<p>
-				<a href="/" style="color:var(--accent); text-decoration:none;">← back to home</a>
-				<span style="color:var(--text-faint); margin:0 6px;">·</span>
-				<a href="/docs" style="color:var(--accent); text-decoration:none;">api docs</a>
-			</p>
+			<div class="hero-links">
+				<a href="/" class="hero-link">› back to home</a>
+				<a href="/docs" class="hero-link">› api docs</a>
+			</div>
 		</div>
 		<button class="btn" style="margin-left:auto;" onclick={handleLogout}>logout</button>
-	</div>
-
-	<!-- Tabs -->
-	<div class="tabs">
-	<!-- Header -->
-	<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
-		<div>
-			<h1 class="text-2xl font-bold tracking-tight">Admin Panel</h1>
-			<p class="text-sm text-neutral-500 dark:text-neutral-400 mt-1">
-				<a href="/" class="text-blue-600 dark:text-blue-400 hover:underline">← Back to Home</a>
-				<span class="mx-2">&middot;</span>
-				<a href="/docs" class="text-blue-600 dark:text-blue-400 hover:underline">API Docs</a>
-			</p>
-		</div>
-		<button
-			type="button"
-			onclick={handleLogout}
-			class="self-start sm:self-auto px-3 py-1.5 text-sm border border-neutral-300 dark:border-neutral-700 rounded-md text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
-		>
-			Log out
-		</button>
 	</div>
 
 	<div class="tabs">
@@ -310,30 +288,15 @@
 		<button class="tab {tab === 'upload' ? 'active' : ''}" onclick={() => (tab = 'upload')}>upload</button>
 	</div>
 
-	<!-- ── Shares Tab ──────────────────────────────────────────────────── -->
+	<!-- ── Shares tab ─────────────────────────────────────────────────── -->
 	{#if tab === 'shares'}
 		{#if sharesData}
-			<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
-				<div class="bg-white dark:bg-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-800 p-3">
-					<div class="text-xs uppercase tracking-wider text-neutral-500">Total</div>
-					<div class="text-xl font-semibold mt-1">{sharesData.stats.total}</div>
-				</div>
-				<div class="bg-white dark:bg-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-800 p-3">
-					<div class="text-xs uppercase tracking-wider text-green-600 dark:text-green-400">Active</div>
-					<div class="text-xl font-semibold mt-1">{sharesData.stats.active}</div>
-				</div>
-				<div class="bg-white dark:bg-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-800 p-3">
-					<div class="text-xs uppercase tracking-wider text-red-500">Expired</div>
-					<div class="text-xl font-semibold mt-1">{sharesData.stats.expired}</div>
-				</div>
-				<div class="bg-white dark:bg-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-800 p-3">
-					<div class="text-xs uppercase tracking-wider text-neutral-500">Total Size</div>
-					<div class="text-xl font-semibold mt-1">{fmtSize(sharesData.stats.totalBytes)}</div>
-				</div>
-				<div class="bg-white dark:bg-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-800 p-3">
-					<div class="text-xs uppercase tracking-wider text-green-600 dark:text-green-400">Active Size</div>
-					<div class="text-xl font-semibold mt-1">{fmtSize(sharesData.stats.activeBytes)}</div>
-				</div>
+			<div class="admin-grid">
+				<div class="admin-stat"><div class="label">total</div><div class="value">{sharesData.stats.total}</div></div>
+				<div class="admin-stat green"><div class="label">active</div><div class="value">{sharesData.stats.active}</div></div>
+				<div class="admin-stat red"><div class="label">expired</div><div class="value">{sharesData.stats.expired}</div></div>
+				<div class="admin-stat"><div class="label">total size</div><div class="value">{fmtSize(sharesData.stats.totalBytes)}</div></div>
+				<div class="admin-stat green"><div class="label">active size</div><div class="value">{fmtSize(sharesData.stats.activeBytes)}</div></div>
 			</div>
 		{/if}
 
@@ -366,155 +329,105 @@
 		</div>
 
 		{#if sharesLoading}
-			<div class="bg-white dark:bg-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-800 p-6">
-				{#each Array(8) as _}
-					<div class="h-8 bg-neutral-100 dark:bg-neutral-800 rounded mb-2 animate-pulse"></div>
-				{/each}
+			<div class="panel">
+				<div class="panel-body" style="padding:24px;">
+					{#each Array(8) as _}
+						<div style="height:36px; background:var(--surface-2); border-radius:4px; margin-bottom:8px;" class="skeleton"></div>
+					{/each}
+				</div>
 			</div>
 		{:else if sharesData && sharesData.shares.length === 0}
-			<div class="bg-white dark:bg-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-800 p-12 text-center text-neutral-400">
-				No shares found.
+			<div class="panel">
+				<div class="panel-body" style="text-align:center; color:var(--text-faint); font-family:var(--mono); font-size:13px;">
+					no shares found.
+				</div>
 			</div>
 		{:else if sharesData}
-			<div class="overflow-x-auto bg-white dark:bg-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-800">
-				<table class="w-full text-sm">
-					<thead>
-						<tr class="border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/50">
-							<th class="text-left px-3 py-2.5 font-medium text-neutral-500 text-xs uppercase tracking-wider">Token</th>
-							<th class="text-left px-3 py-2.5 font-medium text-neutral-500 text-xs uppercase tracking-wider">Filename</th>
-							<th class="text-right px-3 py-2.5 font-medium text-neutral-500 text-xs uppercase tracking-wider">Size</th>
-							<th class="hidden md:table-cell text-left px-3 py-2.5 font-medium text-neutral-500 text-xs uppercase tracking-wider">Type</th>
-							<th class="hidden lg:table-cell text-left px-3 py-2.5 font-medium text-neutral-500 text-xs uppercase tracking-wider">Created</th>
-							<th class="hidden lg:table-cell text-left px-3 py-2.5 font-medium text-neutral-500 text-xs uppercase tracking-wider">Expires</th>
-							<th class="hidden sm:table-cell text-right px-3 py-2.5 font-medium text-neutral-500 text-xs uppercase tracking-wider">DLs</th>
-							<th class="hidden xl:table-cell text-left px-3 py-2.5 font-medium text-neutral-500 text-xs uppercase tracking-wider">IP</th>
-							<th class="text-center px-3 py-2.5 font-medium text-neutral-500 text-xs uppercase tracking-wider">Action</th>
-						</tr>
-					</thead>
-					<tbody>
-						{#each sharesData.shares as share (share.token)}
-							{@const expired = isExpired(share.expires_at)}
-							<tr
-								class="border-b border-neutral-100 dark:border-neutral-800/50 hover:bg-neutral-50 dark:hover:bg-neutral-800/30 transition-colors {expired
-									? 'opacity-60'
-									: ''}"
-							>
-								<td class="px-3 py-2.5">
-									<a
-										href={`/d/${share.token}`}
-										target="_blank"
-										rel="noreferrer"
-										class="text-blue-600 dark:text-blue-400 hover:underline font-mono"
-									>
-										{share.token}
-									</a>
-								</td>
-								<td class="px-3 py-2.5 max-w-[200px] truncate" title={share.filename}>
-									{share.filename}
-								</td>
-								<td class="px-3 py-2.5 text-right font-mono text-xs tabular-nums">
-									{fmtSize(share.size_bytes)}
-								</td>
-								<td class="hidden md:table-cell px-3 py-2.5 text-xs text-neutral-500 max-w-[100px] truncate">
-									{share.content_type || '—'}
-								</td>
-								<td class="hidden lg:table-cell px-3 py-2.5 text-xs text-neutral-500 tabular-nums">
-									{fmtDate(share.created_at)}
-								</td>
-								<td
-									class="hidden lg:table-cell px-3 py-2.5 text-xs tabular-nums {expired
-										? 'status-4xx'
-										: 'status-2xx'}"
-								>
-									{fmtDate(share.expires_at)}
-								</td>
-								<td class="hidden sm:table-cell px-3 py-2.5 text-right font-mono text-xs tabular-nums">
-									{share.download_count}
-								</td>
-								<td class="hidden xl:table-cell px-3 py-2.5 text-xs text-neutral-500 font-mono">
-									{share.created_ip || '—'}
-								</td>
-								<td class="px-3 py-2.5 text-center">
-									<button
-										onclick={() => handleDelete(share.token)}
-										disabled={deleteToken === share.token}
-										class="px-2 py-1 text-xs font-medium rounded transition-colors {deleteToken === share.token
-											? 'text-neutral-400 cursor-not-allowed'
-											: 'text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30'}"
-									>
-										{deleteToken === share.token ? '…' : 'Delete'}
-									</button>
-								</td>
+			<div class="panel">
+				<div class="panel-head">
+					<span class="tag">›</span> shares
+					<span class="meta">page {sharesData.page} of {sharesData.totalPages} · {sharesData.totalShares} total</span>
+				</div>
+				<div class="panel-body panel-body-flush" style="overflow-x:auto;">
+					<table>
+						<thead>
+							<tr>
+								<th>token</th>
+								<th>filename</th>
+								<th style="text-align:right;">size</th>
+								<th class="hide-md">type</th>
+								<th class="hide-md">created</th>
+								<th class="hide-md">expires</th>
+								<th class="hide-sm" style="text-align:right;">dls</th>
+								<th class="hide-lg">ip</th>
+								<th style="text-align:center;">act</th>
 							</tr>
-						{/each}
-					</tbody>
-				</table>
+						</thead>
+						<tbody>
+							{#each sharesData.shares as share (share.token)}
+								{@const expired = isExpired(share.expires_at)}
+								<tr style={expired ? 'opacity:0.55;' : ''}>
+									<td>
+										<a href={`/d/${share.token}`} target="_blank" rel="noreferrer">{share.token}</a>
+									</td>
+									<td style="max-width:240px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title={share.filename}>
+										{share.filename}
+									</td>
+									<td style="text-align:right;">{fmtSize(share.size_bytes)}</td>
+									<td class="hide-md" style="max-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+										{share.content_type || '—'}
+									</td>
+									<td class="hide-md">{fmtDate(share.created_at)}</td>
+									<td class="hide-md {expired ? 'status-4xx' : 'status-2xx'}">{fmtDate(share.expires_at)}</td>
+									<td class="hide-sm" style="text-align:right;">{share.download_count}</td>
+									<td class="hide-lg" style="color:var(--text-dim);">{share.created_ip || '—'}</td>
+									<td style="text-align:center;">
+										<button
+											class="btn danger"
+											style="padding:4px 10px; font-size:11px;"
+											onclick={() => handleDelete(share.token)}
+											disabled={deleteToken === share.token}
+										>
+											{deleteToken === share.token ? '…' : 'del'}
+										</button>
+									</td>
+								</tr>
+							{/each}
+						</tbody>
+					</table>
+				</div>
 			</div>
 
 			{#if sharesData.totalPages > 1}
-				<div class="flex items-center justify-center gap-2 mt-6 flex-wrap">
+				<div class="pager">
 					{#if sharesData.page > 1}
-						<button
-							onclick={() => (sharePage = sharesData!.page - 1)}
-							class="px-3 py-1.5 text-sm rounded-lg border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800"
-						>
-							← Prev
-						</button>
+						<button class="btn" onclick={() => (sharePage = sharesData!.page - 1)}>‹ prev</button>
 					{/if}
 					{#each pages(sharesData.page, sharesData.totalPages) as p, i (i)}
 						{#if p === null}
-							<span class="px-2 text-neutral-400">…</span>
+							<span style="color:var(--text-faint); padding:7px 8px;">…</span>
+						{:else if p === sharesData.page}
+							<span class="current">{p}</span>
 						{:else}
-							<button
-								onclick={() => (sharePage = p as number)}
-								class="px-3 py-1.5 text-sm rounded-lg transition-colors {p === sharesData.page
-									? 'bg-blue-600 text-white'
-									: 'border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800'}"
-							>
-								{p}
-							</button>
+							<button class="btn" onclick={() => (sharePage = p as number)}>{p}</button>
 						{/if}
 					{/each}
 					{#if sharesData.page < sharesData.totalPages}
-						<button
-							onclick={() => (sharePage = sharesData!.page + 1)}
-							class="px-3 py-1.5 text-sm rounded-lg border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800"
-						>
-							Next →
-						</button>
+						<button class="btn" onclick={() => (sharePage = sharesData!.page + 1)}>next ›</button>
 					{/if}
 				</div>
 			{/if}
-
-			<p class="text-center text-xs text-neutral-400 mt-8">
-				Page {sharesData.page} of {sharesData.totalPages} &middot; {sharesData.totalShares}{' '}
-				total share(s)
-			</p>
 		{/if}
 	{/if}
 
-	<!-- ── Audit Log Tab ────────────────────────────────────────────────── -->
+	<!-- ── Audit log tab ───────────────────────────────────────────────── -->
 	{#if tab === 'audit'}
 		{#if auditData}
-			<div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-				<div class="bg-white dark:bg-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-800 p-3">
-					<div class="text-xs uppercase tracking-wider text-neutral-500">Total Events</div>
-					<div class="text-xl font-semibold mt-1">{auditData.stats.total}</div>
-				</div>
-				<div class="bg-white dark:bg-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-800 p-3">
-					<div class="text-xs uppercase tracking-wider text-neutral-500">Unique IPs</div>
-					<div class="text-xl font-semibold mt-1">{auditData.stats.uniqueIps}</div>
-				</div>
-				<div class="bg-white dark:bg-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-800 p-3">
-					<div class="text-xs uppercase tracking-wider text-neutral-500">Last Event</div>
-					<div class="text-xl font-semibold mt-1">
-						{auditData.stats.lastTs ? fmtDuration(auditData.stats.lastTs) : '—'}
-					</div>
-				</div>
-				<div class="bg-white dark:bg-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-800 p-3">
-					<div class="text-xs uppercase tracking-wider text-neutral-500">Showing</div>
-					<div class="text-xl font-semibold mt-1">{auditData.entries.length}</div>
-				</div>
+			<div class="admin-grid">
+				<div class="admin-stat"><div class="label">total events</div><div class="value">{auditData.stats.total}</div></div>
+				<div class="admin-stat"><div class="label">unique ips</div><div class="value">{auditData.stats.uniqueIps}</div></div>
+				<div class="admin-stat accent"><div class="label">last event</div><div class="value">{auditData.stats.lastTs ? fmtDuration(auditData.stats.lastTs) : '—'}</div></div>
+				<div class="admin-stat"><div class="label">showing</div><div class="value">{auditData.entries.length}</div></div>
 			</div>
 		{/if}
 
@@ -560,147 +473,121 @@
 		</div>
 
 		{#if auditLoading}
-			<div class="bg-white dark:bg-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-800 p-6">
-				{#each Array(6) as _}
-					<div class="h-8 bg-neutral-100 dark:bg-neutral-800 rounded mb-2 animate-pulse"></div>
-				{/each}
+			<div class="panel">
+				<div class="panel-body" style="padding:24px;">
+					{#each Array(6) as _}
+						<div style="height:36px; background:var(--surface-2); border-radius:4px; margin-bottom:8px;" class="skeleton"></div>
+					{/each}
+				</div>
 			</div>
 		{:else if auditData && auditData.entries.length === 0}
-			<div class="bg-white dark:bg-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-800 p-12 text-center text-neutral-400">
-				No audit log entries found.
+			<div class="panel">
+				<div class="panel-body" style="text-align:center; color:var(--text-faint); font-family:var(--mono); font-size:13px;">
+					no audit log entries found.
+				</div>
 			</div>
 		{:else if auditData}
-			<div class="overflow-x-auto bg-white dark:bg-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-800">
-				<table class="w-full text-sm">
-					<thead>
-						<tr class="border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/50">
-							<th class="text-left px-3 py-2.5 font-medium text-neutral-500 text-xs uppercase tracking-wider">ID</th>
-							<th class="text-left px-3 py-2.5 font-medium text-neutral-500 text-xs uppercase tracking-wider">Timestamp</th>
-							<th class="text-left px-3 py-2.5 font-medium text-neutral-500 text-xs uppercase tracking-wider">IP</th>
-							<th class="text-left px-3 py-2.5 font-medium text-neutral-500 text-xs uppercase tracking-wider">Action</th>
-							<th class="text-left px-3 py-2.5 font-medium text-neutral-500 text-xs uppercase tracking-wider">Share</th>
-							<th class="text-right px-3 py-2.5 font-medium text-neutral-500 text-xs uppercase tracking-wider">Status</th>
-							<th class="hidden lg:table-cell text-left px-3 py-2.5 font-medium text-neutral-500 text-xs uppercase tracking-wider">Details</th>
-						</tr>
-					</thead>
-					<tbody>
-						{#each auditData.entries as e (e.id)}
-							<tr class="border-b border-neutral-100 dark:border-neutral-800/50 hover:bg-neutral-50 dark:hover:bg-neutral-800/30 transition-colors">
-								<td class="px-3 py-2.5 font-mono text-xs text-neutral-400">{e.id}</td>
-								<td class="px-3 py-2.5 text-xs tabular-nums text-neutral-500" title={fmtDate(e.ts)}>
-									{fmtDuration(e.ts)}
-								</td>
-								<td class="px-3 py-2.5 font-mono text-xs text-neutral-600 dark:text-neutral-400">
-									{e.ip || '—'}
-								</td>
-								<td class="px-3 py-2.5">
-									<span
-										class="inline-block px-2 py-0.5 rounded text-xs font-medium {actionTagClass[e.action] ??
-											'bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300'}"
-									>
-										{e.action}
-									</span>
-								</td>
-								<td class="px-3 py-2.5">
-									{#if e.share_token}
-										<a
-											href={`/d/${e.share_token}`}
-											target="_blank"
-											rel="noreferrer"
-											class="text-blue-600 dark:text-blue-400 hover:underline font-mono text-xs"
-										>
-											{e.share_token}
-										</a>
-									{:else}
-										<span class="text-neutral-400">—</span>
-									{/if}
-								</td>
-								<td class="px-3 py-2.5 text-right">
-									{#if e.status === null}
-										<span class="text-neutral-400">—</span>
-									{:else}
-										<span
-											class="font-mono text-xs tabular-nums {e.status < 300
-												? 'status-2xx'
-												: e.status < 400
-													? 'status-3xx'
-													: 'status-4xx'}"
-										>
-											{e.status}
-										</span>
-									{/if}
-								</td>
-								<td class="hidden lg:table-cell px-3 py-2.5 text-xs text-neutral-500 max-w-[300px] truncate">
-									{e.detail_json || '—'}
-								</td>
+			<div class="panel">
+				<div class="panel-head">
+					<span class="tag">›</span> events
+					<span class="meta">page {auditData.page} of {auditData.totalPages} · {auditData.totalEntries} total</span>
+				</div>
+				<div class="panel-body panel-body-flush" style="overflow-x:auto;">
+					<table>
+						<thead>
+							<tr>
+								<th style="width:60px;">id</th>
+								<th style="width:90px;">when</th>
+								<th>ip</th>
+								<th>action</th>
+								<th>share</th>
+								<th style="text-align:right;">status</th>
+								<th class="hide-lg">details</th>
 							</tr>
-						{/each}
-					</tbody>
-				</table>
+						</thead>
+						<tbody>
+							{#each auditData.entries as e (e.id)}
+								<tr>
+									<td style="color:var(--text-faint);">{e.id}</td>
+									<td style="color:var(--text-dim);" title={fmtDate(e.ts)}>{fmtDuration(e.ts)}</td>
+									<td style="color:var(--text-dim);">{e.ip || '—'}</td>
+									<td>
+										<span class={actionTagClass[e.action] ?? 'tag-act'}>{e.action}</span>
+									</td>
+									<td>
+										{#if e.share_token}
+											<a href={`/d/${e.share_token}`} target="_blank" rel="noreferrer">{e.share_token}</a>
+										{:else}
+											<span style="color:var(--text-faint);">—</span>
+										{/if}
+									</td>
+									<td style="text-align:right;">
+										{#if e.status === null}
+											<span style="color:var(--text-faint);">—</span>
+										{:else}
+											<span class={e.status < 300 ? 'status-2xx' : e.status < 400 ? 'status-3xx' : 'status-4xx'}>
+												{e.status}
+											</span>
+										{/if}
+									</td>
+									<td class="hide-lg" style="color:var(--text-dim); font-size:11px; max-width:340px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+										{e.detail_json || '—'}
+									</td>
+								</tr>
+							{/each}
+						</tbody>
+					</table>
+				</div>
 			</div>
 
 			{#if auditData.totalPages > 1}
-				<div class="flex items-center justify-center gap-2 mt-6 flex-wrap">
+				<div class="pager">
 					{#if auditData.page > 1}
-						<button
-							onclick={() => (auditPage = auditData!.page - 1)}
-							class="px-3 py-1.5 text-sm rounded-lg border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800"
-						>
-							← Prev
-						</button>
+						<button class="btn" onclick={() => (auditPage = auditData!.page - 1)}>‹ prev</button>
 					{/if}
 					{#each pages(auditData.page, auditData.totalPages) as p, i (i)}
 						{#if p === null}
-							<span class="px-2 text-neutral-400">…</span>
+							<span style="color:var(--text-faint); padding:7px 8px;">…</span>
+						{:else if p === auditData.page}
+							<span class="current">{p}</span>
 						{:else}
-							<button
-								onclick={() => (auditPage = p as number)}
-								class="px-3 py-1.5 text-sm rounded-lg transition-colors {p === auditData.page
-									? 'bg-blue-600 text-white'
-									: 'border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800'}"
-							>
-								{p}
-							</button>
+							<button class="btn" onclick={() => (auditPage = p as number)}>{p}</button>
 						{/if}
 					{/each}
 					{#if auditData.page < auditData.totalPages}
-						<button
-							onclick={() => (auditPage = auditData!.page + 1)}
-							class="px-3 py-1.5 text-sm rounded-lg border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800"
-						>
-							Next →
-						</button>
+						<button class="btn" onclick={() => (auditPage = auditData!.page + 1)}>next ›</button>
 					{/if}
 				</div>
 			{/if}
-
-			<p class="text-center text-xs text-neutral-400 mt-8">
-				Page {auditData.page} of {auditData.totalPages} &middot; {auditData.totalEntries}{' '}
-				total entries
-			</p>
 		{/if}
 	{/if}
 
-	<!-- ── Upload Tab ───────────────────────────────────────────────────── -->
+	<!-- ── Upload tab ──────────────────────────────────────────────────── -->
 	{#if tab === 'upload'}
-		<div class="max-w-2xl mx-auto">
-			<p class="text-sm text-neutral-500 dark:text-neutral-400 mb-4">
-				Admin uploads bypass all quotas. Select "No expiry" for shares that never
-				expire.
-			</p>
-			<Uploader
-				maxSize={100 * 1024 * 1024 * 1024}
-				ttlPresets={[
-					{ label: 'No expiry', value: 0 },
-					{ label: '5 minutes', value: 300 },
-					{ label: '30 minutes', value: 1800 },
-					{ label: '1 hour', value: 3600 },
-					{ label: '6 hours', value: 21600 },
-					{ label: '24 hours', value: 86400 },
-					{ label: '3 days', value: 259200 },
-					{ label: '7 days', value: 604800 }
-				]}
-			/>
+		<div class="panel" style="max-width:720px; margin:0 auto;">
+			<div class="panel-head">
+				<span class="tag">›</span> admin_upload
+				<span class="meta">bypass all quotas · max 100 GB · "No expiry" available</span>
+			</div>
+			<div class="panel-body">
+				<p class="dropzone-meta" style="margin:0 0 14px;">
+					admin uploads use the same Uploader with admin preset (100 GB cap, "No expiry" TTL).
+				</p>
+				<Uploader
+					maxSize={100 * 1024 * 1024 * 1024}
+					ttlPresets={[
+						{ label: 'No expiry', value: 0 },
+						{ label: '5 minutes', value: 300 },
+						{ label: '30 minutes', value: 1800 },
+						{ label: '1 hour', value: 3600 },
+						{ label: '6 hours', value: 21600 },
+						{ label: '24 hours', value: 86400 },
+						{ label: '3 days', value: 259200 },
+						{ label: '7 days', value: 604800 }
+					]}
+				/>
+			</div>
 		</div>
 	{/if}
+
 </main>
