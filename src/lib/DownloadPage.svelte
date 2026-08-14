@@ -137,130 +137,106 @@
 	}
 </script>
 
-<main class="min-h-screen flex items-center justify-center bg-neutral-50 dark:bg-neutral-950 p-6">
-	<div class="w-full max-w-md">
+<main class="wrap">
+	<div class="download-card">
+
 		{#if status === 'loading'}
-			<div class="text-center text-neutral-500 dark:text-neutral-400">Loading…</div>
-		{/if}
-
-		{#if status === 'missing'}
-			<div class="text-center space-y-2">
-				<h1 class="text-2xl font-semibold text-neutral-900 dark:text-neutral-50">
-					Link not found
-				</h1>
-				<p class="text-neutral-600 dark:text-neutral-400">
-					This share link doesn&apos;t exist or has been removed.
-				</p>
-			</div>
-		{/if}
-
-		{#if status === 'expired'}
-			<div class="text-center space-y-2">
-				<h1 class="text-2xl font-semibold text-neutral-900 dark:text-neutral-50">
-					Link expired
-				</h1>
-				<p class="text-neutral-600 dark:text-neutral-400">
-					This share has expired and the file has been deleted.
-				</p>
-			</div>
-		{/if}
-
-		{#if status === 'password-required' && info}
-			<div class="border border-neutral-200 dark:border-neutral-800 rounded-xl p-6 bg-white dark:bg-neutral-900 space-y-4">
-				<h1 class="text-lg font-semibold text-neutral-900 dark:text-neutral-50 break-all">
-					{info.filename}
-				</h1>
-				<dl class="text-sm space-y-1 text-neutral-600 dark:text-neutral-400">
-					<div class="flex justify-between">
-						<dt>Size</dt>
-						<dd>{formatBytes(info.size_bytes)}</dd>
-					</div>
-					<div class="flex justify-between">
-						<dt>Type</dt>
-						<dd class="font-mono text-xs">{info.content_type}</dd>
-					</div>
-				</dl>
-				<div class="border-t border-neutral-200 dark:border-neutral-700 pt-4">
-					<p class="text-sm text-amber-600 dark:text-amber-400 font-medium mb-2">
-						🔒 This file is password-protected
-					</p>
-					<input
-						bind:value={password}
-						type="password"
-						onkeydown={(e) => {
-							if (e.key === 'Enter') downloadWithPassword();
-						}}
-						placeholder="Enter password"
-						autofocus
-						class="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 mb-3"
-					/>
-					{#if errorMsg}
-						<p class="text-xs text-red-600 dark:text-red-400 mb-3">{errorMsg}</p>
-					{/if}
-					<button
-						onclick={downloadWithPassword}
-						disabled={verifying}
-						class="w-full py-3 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-medium"
-					>
-						{verifying ? 'Verifying…' : 'Download'}
-					</button>
+			<div class="panel">
+				<div class="panel-head">
+					<span class="tag">›</span> loading
+				</div>
+				<div class="panel-body" style="text-align:center; color:var(--text-dim); font-family:var(--mono); font-size:13px;">
+					loading…
 				</div>
 			</div>
 		{/if}
 
-		{#if status === 'wrong-password' && info}
-			<div class="border border-red-200 dark:border-red-900 rounded-xl p-6 bg-white dark:bg-neutral-900 space-y-4">
-				<h1 class="text-lg font-semibold text-neutral-900 dark:text-neutral-50 break-all">
-					{info.filename}
-				</h1>
-				<p class="text-sm text-red-600 dark:text-red-400">
-					{errorMsg || 'Invalid password.'}
-				</p>
-				<button
-					onclick={retryPassword}
-					class="w-full py-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium"
-				>
-					Try Again
-				</button>
+		{#if status === 'missing'}
+			<div class="panel" style="border-color:rgba(252,165,165,0.3);">
+				<div class="panel-head" style="color:var(--error);">
+					<span class="tag" style="color:var(--error);">✗</span> link_not_found
+				</div>
+				<div class="panel-body" style="text-align:center; color:var(--text-dim); font-family:var(--mono); font-size:13px;">
+					this share link doesn&apos;t exist or has been removed.
+				</div>
+			</div>
+		{/if}
+
+		{#if status === 'expired'}
+			<div class="panel" style="border-color:rgba(253,224,71,0.3);">
+				<div class="panel-head" style="color:var(--warn);">
+					<span class="tag" style="color:var(--warn);">!</span> link_expired
+				</div>
+				<div class="panel-body" style="text-align:center; color:var(--text-dim); font-family:var(--mono); font-size:13px;">
+					this share has expired and the file has been deleted.
+				</div>
+			</div>
+		{/if}
+
+		{#if (status === 'password-required' || status === 'wrong-password') && info}
+			<div class="panel">
+				<div class="panel-head">
+					<span class="tag">›</span> password_required
+					<span class="meta">{info.download_count} downloads</span>
+				</div>
+				<div class="panel-body">
+					<div class="download-filename">{info.filename}</div>
+					<dl class="meta-list" style="border:none; padding:0;">
+						<dt>size</dt><dd>{formatBytes(info.size_bytes)}</dd>
+						<dt>type</dt><dd>{info.content_type || '—'}</dd>
+						<dt>expires</dt><dd>{formatRelativeTime(info.expires_at)}</dd>
+					</dl>
+
+					<form class="password-form" onsubmit={(e) => { e.preventDefault(); downloadWithPassword(); }}>
+						<p class="warn">this file is password-protected</p>
+						<input
+							class="input"
+							type="password"
+							bind:value={password}
+							onkeydown={(e) => { if (e.key === 'Enter') downloadWithPassword(); }}
+							placeholder="enter password"
+							autofocus
+						/>
+						{#if errorMsg}
+							<p class="download-error">{errorMsg}</p>
+						{/if}
+						<button class="btn primary" type="submit" disabled={verifying || !password}>
+							{verifying ? 'Verifying…' : status === 'wrong-password' ? 'Try again' : 'Verify & Download'}
+						</button>
+						{#if status === 'wrong-password'}
+							<button type="button" class="btn outline" style="margin-top:6px;" onclick={retryPassword}>
+								Reset
+							</button>
+						{/if}
+					</form>
+				</div>
 			</div>
 		{/if}
 
 		{#if status === 'ok' && info && !info.has_password}
-			<div class="border border-neutral-200 dark:border-neutral-800 rounded-xl p-6 bg-white dark:bg-neutral-900 space-y-4">
-				<h1 class="text-lg font-semibold text-neutral-900 dark:text-neutral-50 break-all">
-					{info.filename}
-				</h1>
-				<dl class="text-sm space-y-1 text-neutral-600 dark:text-neutral-400">
-					<div class="flex justify-between">
-						<dt>Size</dt>
-						<dd>{formatBytes(info.size_bytes)}</dd>
-					</div>
-					<div class="flex justify-between">
-						<dt>Type</dt>
-						<dd class="font-mono text-xs">{info.content_type}</dd>
-					</div>
-					<div class="flex justify-between">
-						<dt>Downloads</dt>
-						<dd>{info.download_count}</dd>
-					</div>
-					<div class="flex justify-between">
-						<dt>Expires</dt>
-						<dd>{formatRelativeTime(info.expires_at)}</dd>
-					</div>
-				</dl>
-				<button
-					onclick={download}
-					class="w-full py-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium"
-				>
-					Download
-				</button>
-				<p class="text-xs text-neutral-500 dark:text-neutral-500 text-center">
-					Direct link:{' '}
-					<code class="bg-neutral-100 dark:bg-neutral-800 px-1 py-0.5 rounded">
-						/api/download/{token}
-					</code>
-				</p>
+			<div class="panel">
+				<div class="panel-head">
+					<span class="tag">›</span> file_info
+					<span class="meta">{info.download_count} downloads · cache HIT</span>
+				</div>
+				<div class="panel-body">
+					<div class="download-filename">{info.filename}</div>
+					<dl class="meta-list" style="border:none; padding:0;">
+						<dt>size</dt><dd>{formatBytes(info.size_bytes)}</dd>
+						<dt>type</dt><dd>{info.content_type || '—'}</dd>
+						<dt>expires</dt><dd>{formatRelativeTime(info.expires_at)}</dd>
+						<dt>cache</dt><dd class="accent">edge HIT · 0 S3 calls</dd>
+					</dl>
+					<hr class="divider">
+					<button class="btn primary" style="width:100%; padding:11px;" onclick={download}>
+						↓ Download
+					</button>
+					<p class="dropzone-meta" style="margin-top:12px; text-align:center;">
+						direct: <code style="color:var(--accent);">/api/download/{token}</code>
+					</p>
+				</div>
 			</div>
 		{/if}
+
 	</div>
 </main>

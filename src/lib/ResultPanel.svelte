@@ -46,11 +46,9 @@
 		});
 	});
 
-	async function onCopy(text: string, setter: (v: boolean) => void) {
+	async function onCopy(text: string, setter: (v: boolean) => void, btn: HTMLButtonElement) {
 		try {
 			await navigator.clipboard.writeText(text);
-			setter(true);
-			setTimeout(() => setter(false), 1500);
 		} catch {
 			const ta = document.createElement('textarea');
 			ta.value = text;
@@ -58,9 +56,19 @@
 			ta.select();
 			document.execCommand('copy');
 			document.body.removeChild(ta);
-			setter(true);
-			setTimeout(() => setter(false), 1500);
 		}
+		setter(true);
+		if (btn) {
+			const orig = btn.dataset.orig ?? btn.textContent ?? '';
+			btn.dataset.orig = orig;
+			btn.textContent = 'Copied ✓';
+			btn.classList.add('copied');
+			setTimeout(() => {
+				btn.textContent = orig;
+				btn.classList.remove('copied');
+			}, 1400);
+		}
+		setTimeout(() => setter(false), 1500);
 	}
 
 	const remainingMs = Math.max(0, expiresAt - now);
@@ -78,65 +86,59 @@
 	}
 </script>
 
-<div class="p-4 border border-green-300 dark:border-green-800 bg-green-50 dark:bg-green-950/30 rounded-lg space-y-4">
-	<h3 class="font-semibold text-green-900 dark:text-green-100">Uploaded ✓ · Share link ready</h3>
-
-	<div class="flex flex-col sm:flex-row gap-4 items-start">
-		<div class="shrink-0 p-2 bg-white rounded-lg border border-neutral-200 dark:border-neutral-800">
-			<canvas bind:this={canvasRef} width={192} height={192}></canvas>
-		</div>
-
-		<div class="flex-1 min-w-0 space-y-2">
-			<div class="text-sm text-neutral-700 dark:text-neutral-300 break-all">
-				<code class="font-mono text-base font-semibold text-neutral-900 dark:text-neutral-50">
-					/d/{shareToken}
-				</code>
-			</div>
-
-			<div class="flex gap-2">
-				<button
-					onclick={() => onCopy(fullUrl, (v) => (copied = v))}
-					class="px-3 py-1.5 text-sm rounded-md bg-blue-600 hover:bg-blue-700 text-white"
-				>
-					{copied ? 'Copied ✓' : 'Copy link'}
-				</button>
-				<button
-					onclick={() => onCopy(directDownloadUrl, (v) => (copiedDirect = v))}
-					class="px-3 py-1.5 text-sm rounded-md border border-blue-600 text-blue-600 hover:bg-blue-50 dark:border-blue-400 dark:text-blue-400 dark:hover:bg-blue-950/30"
-				>
-					{copiedDirect ? 'Copied ✓' : 'Copy direct link'}
-				</button>
-			</div>
-
-			{#if password}
-				<p class="text-xs text-amber-600 dark:text-amber-400">
-					🔒 Direct link includes password via <code>?password=</code>
-				</p>
-			{/if}
-
-			<dl class="text-xs space-y-0.5 text-neutral-600 dark:text-neutral-400 mt-2">
-				<div class="flex gap-2">
-					<dt class="w-20 shrink-0">Filename</dt>
-					<dd class="truncate">{filename}</dd>
-				</div>
-				<div class="flex gap-2">
-					<dt class="w-20 shrink-0">Size</dt>
-					<dd>{(size / 1024).toFixed(1)} KB</dd>
-				</div>
-				<div class="flex gap-2">
-					<dt class="w-20 shrink-0">Uploaded in</dt>
-					<dd>{elapsed.toFixed(1)}s</dd>
-				</div>
-				<div class="flex gap-2">
-					<dt class="w-20 shrink-0">Expires</dt>
-					<dd>{formatRemaining(remainingMs)}</dd>
-				</div>
-			</dl>
-		</div>
+<div class="panel" style="margin-top:14px;">
+	<div class="panel-head">
+		<span class="tag">›</span> share_link
+		<span class="meta">{formatRemaining(remainingMs)}</span>
 	</div>
+	<div class="panel-body">
+		<div class="result-grid">
+			<div class="qr">
+				<canvas bind:this={canvasRef} width={192} height={192}></canvas>
+			</div>
 
-	<div class="text-xs text-neutral-500 dark:text-neutral-500 pt-2 border-t border-green-200 dark:border-green-900">
-		Anyone with this link can download the file until it expires. After expiry, the file is
-		deleted from storage.
+			<div>
+				<div class="share-link">
+					<span class="small">share url</span>
+					{directDownloadUrl.startsWith(baseUrl + '/api/download/') ? baseUrl + '/d/' + shareToken : fullUrl}
+				</div>
+
+				<div class="btn-row">
+					<button
+						class="btn primary"
+						onclick={(e) => onCopy(fullUrl, (v) => (copied = v), e.currentTarget)}
+					>
+						{copied ? 'Copied ✓' : 'Copy link'}
+					</button>
+					<button
+						class="btn outline"
+						onclick={(e) => onCopy(directDownloadUrl, (v) => (copiedDirect = v), e.currentTarget)}
+					>
+						{copiedDirect ? 'Copied ✓' : 'Copy direct link'}
+					</button>
+					<button class="btn outline" onclick={() => window.location.reload()}>New upload</button>
+				</div>
+
+				{#if password}
+					<p class="password-form warn" style="margin-top:0;">
+						direct link includes password via ?password=
+					</p>
+				{/if}
+
+				<dl class="meta-list">
+					<dt>filename</dt><dd class="truncate" title={filename}>{filename}</dd>
+					<dt>size</dt><dd>{(size / 1024).toFixed(1)} KB</dd>
+					<dt>elapsed</dt><dd>{elapsed.toFixed(1)}s</dd>
+					<dt>expires</dt><dd>{formatRemaining(remainingMs)}</dd>
+					<dt>password</dt><dd>{password || '—'}</dd>
+					<dt>cache</dt><dd class="success">prefetched (30 d TTL)</dd>
+				</dl>
+			</div>
+		</div>
+
+		<p class="dropzone-meta" style="margin-top:14px;">
+			Anyone with this link can download the file until it expires. After expiry, the
+			file is deleted from storage.
+		</p>
 	</div>
 </div>

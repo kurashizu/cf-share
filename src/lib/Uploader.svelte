@@ -525,112 +525,105 @@
 	}
 </script>
 
-<div class="w-full max-w-xl space-y-4">
-	<!-- TTL selector — always visible -->
-	<div class="flex items-center gap-3 text-sm">
-		<label for="ttl-select" class="text-neutral-600 dark:text-neutral-400 font-medium whitespace-nowrap">
-			Link expires in:
-		</label>
-		<select
-			bind:value={ttl}
-			id="ttl-select"
-			disabled={active !== null && active.state.kind !== 'error'}
-			class="flex-1 px-3 py-2 border border-neutral-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
-		>
-			{#each ttlPresets as opt (opt.value)}
-				<option value={opt.value}>{opt.label}</option>
-			{/each}
-		</select>
+<div class="panel">
+	<div class="panel-head">
+		<span class="tag">›</span> upload_config
+		<span class="meta">anon · max {maxSize >= 1024 * 1024 * 1024
+			? `${Math.round(maxSize / (1024 * 1024 * 1024))} GB`
+			: `${Math.round(maxSize / (1024 * 1024))} MB`}</span>
 	</div>
+	<div class="panel-body">
+		<div class="controls">
+			<label for="ttl-select">expires in</label>
+			<select
+				bind:value={ttl}
+				id="ttl-select"
+				class="select"
+				disabled={active !== null && active.state.kind !== 'error'}
+			>
+				{#each ttlPresets as opt (opt.value)}
+					<option value={opt.value}>{opt.label}</option>
+				{/each}
+			</select>
 
-	<!-- Password — optional -->
-	<div class="flex items-center gap-3 text-sm">
-		<label for="password-input" class="text-neutral-600 dark:text-neutral-400 font-medium whitespace-nowrap">
-			Password:
-		</label>
-		<input
-			bind:value={password}
-			id="password-input"
-			type="password"
-			placeholder="Leave empty for no password"
-			disabled={active !== null && active.state.kind !== 'error'}
-			class="flex-1 px-3 py-2 border border-neutral-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
-		/>
-	</div>
+			<label for="password-input">password</label>
+			<input
+				bind:value={password}
+				id="password-input"
+				class="input"
+				type="password"
+				placeholder="leave empty for no password"
+				disabled={active !== null && active.state.kind !== 'error'}
+			/>
+		</div>
 
-	<!-- Dropzone -->
-	<div
-		role="button"
-		tabindex="0"
-		onclick={() => {
-			if (active && active.state.kind !== 'error') return;
-			document.querySelector<HTMLInputElement>('[data-upload-input]')?.click();
-		}}
-		ondragover={(e) => {
-			e.preventDefault();
-			isDragActive = true;
-		}}
-		ondragleave={(e) => {
-			e.preventDefault();
-			isDragActive = false;
-		}}
-		ondrop={(e) => {
-			e.preventDefault();
-			isDragActive = false;
-			if (active && active.state.kind !== 'error') return;
-			const files = Array.from(e.dataTransfer?.files ?? []);
-			onDrop(files);
-		}}
-		onkeydown={(e) => {
-			if ((e.key === 'Enter' || e.key === ' ') && !(active && active.state.kind !== 'error')) {
+		<div
+			class="dropzone {isDragActive ? 'active' : ''} {active && active.state.kind !== 'error' ? 'is-busy' : ''}"
+			role="button"
+			tabindex="0"
+			onclick={() => {
+				if (active && active.state.kind !== 'error') return;
 				document.querySelector<HTMLInputElement>('[data-upload-input]')?.click();
-			}
-		}}
-		class="border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition-colors {isDragActive
-			? 'border-blue-500 bg-blue-50 dark:bg-blue-950/20'
-			: 'border-neutral-300 dark:border-neutral-700 hover:border-neutral-400 dark:hover:border-neutral-600'} {active &&
-			active.state.kind !== 'error'
-			? 'pointer-events-none opacity-60'
-			: ''}"
-	>
-		<input
-			class="hidden"
-			data-upload-input
-			type="file"
-			onchange={(e) => {
-				const input = e.currentTarget as HTMLInputElement;
-				if (input.files && input.files.length > 0) {
-					onDrop(Array.from(input.files));
-				}
-				input.value = '';
 			}}
-		/>
-		<p class="text-lg font-medium text-neutral-700 dark:text-neutral-200">
-			{isDragActive ? 'Drop the file here...' : 'Drag & drop a file here'}
-		</p>
-		<p class="mt-2 text-sm text-neutral-500 dark:text-neutral-400">
-			or click to select · Max{' '}
-			{maxSize >= 1024 * 1024 * 1024
-				? `${Math.round(maxSize / (1024 * 1024 * 1024))} GB`
-				: `${Math.round(maxSize / (1024 * 1024))} MB`}{' '}
-			· Any file type
-		</p>
+			ondragover={(e) => {
+				e.preventDefault();
+				isDragActive = true;
+			}}
+			ondragleave={(e) => {
+				e.preventDefault();
+				isDragActive = false;
+			}}
+			ondrop={(e) => {
+				e.preventDefault();
+				isDragActive = false;
+				if (active && active.state.kind !== 'error') return;
+				const files = Array.from(e.dataTransfer?.files ?? []);
+				onDrop(files);
+			}}
+			onkeydown={(e) => {
+				if ((e.key === 'Enter' || e.key === ' ') && !(active && active.state.kind !== 'error')) {
+					document.querySelector<HTMLInputElement>('[data-upload-input]')?.click();
+				}
+			}}
+		>
+			<input
+				class="hidden"
+				data-upload-input
+				type="file"
+				onchange={(e) => {
+					const input = e.currentTarget as HTMLInputElement;
+					if (input.files && input.files.length > 0) {
+						onDrop(Array.from(input.files));
+					}
+					input.value = '';
+				}}
+			/>
+			<p class="dropzone-title">
+				{isDragActive ? '[ drop file ]' : '[ drop file here or click to select ]'}
+			</p>
+			<p class="dropzone-meta">
+				max {maxSize >= 1024 * 1024 * 1024
+					? `${Math.round(maxSize / (1024 * 1024 * 1024))} GB`
+					: `${Math.round(maxSize / (1024 * 1024))} MB`}
+				· any file type · direct-to-S3 upload
+			</p>
+		</div>
+
+		{#if active}
+			<FileItem file={active.file} uploadState={active.state} onCancel={cancel} onRetry={retry} />
+		{/if}
+
+		{#if completed}
+			<ResultPanel
+				shareToken={completed.shareToken}
+				shareUrl={completed.shareUrl}
+				fullUrl={completed.fullUrl}
+				expiresAt={completed.expiresAt}
+				filename={completed.filename}
+				size={completed.size}
+				startedAt={completed.startedAt}
+				password={completed.password}
+			/>
+		{/if}
 	</div>
-
-	{#if active}
-		<FileItem file={active.file} uploadState={active.state} onCancel={cancel} onRetry={retry} />
-	{/if}
-
-	{#if completed}
-		<ResultPanel
-			shareToken={completed.shareToken}
-			shareUrl={completed.shareUrl}
-			fullUrl={completed.fullUrl}
-			expiresAt={completed.expiresAt}
-			filename={completed.filename}
-			size={completed.size}
-			startedAt={completed.startedAt}
-			password={completed.password}
-		/>
-	{/if}
 </div>

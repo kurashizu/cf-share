@@ -110,16 +110,14 @@
 		return result;
 	}
 
-	const actionColors: Record<string, string> = {
-		init: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
-		complete:
-			'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300',
-		download:
-			'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300',
-		expire: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300',
-		delete: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
-		admin_view:
-			'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
+	// Map raw action name → tag-act colour class (defined in app.css).
+	const actionTagClass: Record<string, string> = {
+		init: 'tag-act init',
+		complete: 'tag-act complete',
+		download: 'tag-act download',
+		expire: 'tag-act expire',
+		delete: 'tag-act delete',
+		admin_view: 'tag-act admin_view'
 	};
 
 	/* ================================================================== */
@@ -270,7 +268,23 @@
 	/* ================================================================== */
 </script>
 
-<div class="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
+<main class="wrap">
+
+	<div class="hero">
+	<div class="hero-logo"><img src="/favicon.svg" alt="KRSZ Share" /></div>
+		<div>
+			<h1>admin_panel</h1>
+			<p>
+				<a href="/" style="color:var(--accent); text-decoration:none;">← back to home</a>
+				<span style="color:var(--text-faint); margin:0 6px;">·</span>
+				<a href="/docs" style="color:var(--accent); text-decoration:none;">api docs</a>
+			</p>
+		</div>
+		<button class="btn" style="margin-left:auto;" onclick={handleLogout}>logout</button>
+	</div>
+
+	<!-- Tabs -->
+	<div class="tabs">
 	<!-- Header -->
 	<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
 		<div>
@@ -290,32 +304,10 @@
 		</button>
 	</div>
 
-	<!-- Tabs -->
-	<div class="flex gap-1 mb-6 border-b border-neutral-200 dark:border-neutral-800">
-		<button
-			onclick={() => (tab = 'shares')}
-			class="px-4 py-2.5 text-sm font-medium border-b-2 transition-colors {tab === 'shares'
-				? 'border-blue-600 text-blue-600 dark:text-blue-400 dark:border-blue-400'
-				: 'border-transparent text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300'}"
-		>
-			Shares
-		</button>
-		<button
-			onclick={() => (tab = 'audit')}
-			class="px-4 py-2.5 text-sm font-medium border-b-2 transition-colors {tab === 'audit'
-				? 'border-blue-600 text-blue-600 dark:text-blue-400 dark:border-blue-400'
-				: 'border-transparent text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300'}"
-		>
-			Audit Log
-		</button>
-		<button
-			onclick={() => (tab = 'upload')}
-			class="px-4 py-2.5 text-sm font-medium border-b-2 transition-colors {tab === 'upload'
-				? 'border-blue-600 text-blue-600 dark:text-blue-400 dark:border-blue-400'
-				: 'border-transparent text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300'}"
-		>
-			Upload
-		</button>
+	<div class="tabs">
+		<button class="tab {tab === 'shares' ? 'active' : ''}" onclick={() => (tab = 'shares')}>shares</button>
+		<button class="tab {tab === 'audit' ? 'active' : ''}" onclick={() => (tab = 'audit')}>audit log</button>
+		<button class="tab {tab === 'upload' ? 'active' : ''}" onclick={() => (tab = 'upload')}>upload</button>
 	</div>
 
 	<!-- ── Shares Tab ──────────────────────────────────────────────────── -->
@@ -345,54 +337,32 @@
 			</div>
 		{/if}
 
-		<div class="flex flex-col sm:flex-row gap-3 mb-4 items-start sm:items-center">
-			<div class="flex gap-2 flex-1 w-full sm:w-auto">
-				<input
-					bind:value={shareQueryInput}
-					type="text"
-					placeholder="Search by filename or token…"
-					onkeydown={(e) => {
-						if (e.key === 'Enter') {
-							shareQuery = shareQueryInput;
-							sharePage = 1;
-						}
-					}}
-					class="flex-1 px-3 py-2 border border-neutral-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-0"
-				/>
-				<button
-					onclick={() => {
+		<div class="toolbar">
+			<input
+				bind:value={shareQueryInput}
+				class="input"
+				type="text"
+				placeholder="search filename or token…"
+				onkeydown={(e) => {
+					if (e.key === 'Enter') {
 						shareQuery = shareQueryInput;
 						sharePage = 1;
-					}}
-					class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
-				>
-					Search
-				</button>
-			</div>
-			<div class="flex gap-2">
-				<button
-					onclick={() => {
-						shareShowAll = true;
-						sharePage = 1;
-					}}
-					class="px-3 py-2 rounded-lg text-sm font-medium border transition-colors {shareShowAll
-						? 'bg-blue-600 text-white border-blue-600'
-						: 'bg-white dark:bg-neutral-900 border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800'}"
-				>
-					Show All
-				</button>
-				<button
-					onclick={() => {
-						shareShowAll = false;
-						sharePage = 1;
-					}}
-					class="px-3 py-2 rounded-lg text-sm font-medium border transition-colors {!shareShowAll
-						? 'bg-blue-600 text-white border-blue-600'
-						: 'bg-white dark:bg-neutral-900 border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800'}"
-				>
-					Active Only
-				</button>
-			</div>
+					}
+				}}
+			/>
+			<select class="select" bind:value={shareShowAll} onchange={() => (sharePage = 1)}>
+				<option value={false}>active only</option>
+				<option value={true}>show all</option>
+			</select>
+			<button
+				class="btn primary"
+				onclick={() => {
+					shareQuery = shareQueryInput;
+					sharePage = 1;
+				}}
+			>
+				Search
+			</button>
 		</div>
 
 		{#if sharesLoading}
@@ -453,8 +423,8 @@
 								</td>
 								<td
 									class="hidden lg:table-cell px-3 py-2.5 text-xs tabular-nums {expired
-										? 'text-red-500'
-										: 'text-green-600 dark:text-green-400'}"
+										? 'status-4xx'
+										: 'status-2xx'}"
 								>
 									{fmtDate(share.expires_at)}
 								</td>
@@ -548,55 +518,45 @@
 			</div>
 		{/if}
 
-		<div class="flex flex-col sm:flex-row gap-3 mb-4 items-start sm:items-center">
-			<div class="flex gap-2 flex-1 w-full sm:w-auto">
-				<input
-					bind:value={auditQueryInput}
-					type="text"
-					placeholder="Search IP or share token…"
-					onkeydown={(e) => {
-						if (e.key === 'Enter') {
-							auditQuery = auditQueryInput;
-							auditPage = 1;
-						}
-					}}
-					class="flex-1 px-3 py-2 border border-neutral-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-0"
-				/>
-				<select
-					bind:value={auditAction}
-					onchange={() => (auditPage = 1)}
-					class="px-3 py-2 border border-neutral-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-				>
-					<option value="">All actions</option>
-					{#each auditData?.actions ?? [] as a (a)}
-						<option value={a}>{a}</option>
-					{/each}
-				</select>
-				<button
-					onclick={() => {
+		<div class="toolbar">
+			<input
+				bind:value={auditQueryInput}
+				class="input"
+				type="text"
+				placeholder="search ip or share token…"
+				onkeydown={(e) => {
+					if (e.key === 'Enter') {
 						auditQuery = auditQueryInput;
 						auditPage = 1;
-					}}
-					class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
-				>
-					Filter
-				</button>
-			</div>
-			<div class="flex gap-2 flex-wrap">
-				{#each ['init', 'complete', 'download', 'delete'] as act (act)}
-					<button
-						onclick={() => {
-							auditAction = auditAction === act ? '' : act;
-							auditPage = 1;
-						}}
-						class="px-3 py-2 rounded-lg text-sm font-medium border transition-colors {auditAction === act
-							? 'bg-blue-600 text-white border-blue-600'
-							: 'bg-white dark:bg-neutral-900 border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800'}"
-					>
-						{act}
-					</button>
+					}
+				}}
+			/>
+			<select class="select" bind:value={auditAction} onchange={() => (auditPage = 1)}>
+				<option value="">all actions</option>
+				{#each auditData?.actions ?? [] as a (a)}
+					<option value={a}>{a}</option>
 				{/each}
-			</div>
+			</select>
+			<button
+				class="btn primary"
+				onclick={() => {
+					auditQuery = auditQueryInput;
+					auditPage = 1;
+				}}
+			>
+				Filter
+			</button>
+			{#each ['init', 'complete', 'download', 'delete'] as act (act)}
+				<button
+					class="btn {auditAction === act ? 'primary' : 'outline'}"
+					onclick={() => {
+						auditAction = auditAction === act ? '' : act;
+						auditPage = 1;
+					}}
+				>
+					{act}
+				</button>
+			{/each}
 		</div>
 
 		{#if auditLoading}
@@ -635,7 +595,7 @@
 								</td>
 								<td class="px-3 py-2.5">
 									<span
-										class="inline-block px-2 py-0.5 rounded text-xs font-medium {actionColors[e.action] ??
+										class="inline-block px-2 py-0.5 rounded text-xs font-medium {actionTagClass[e.action] ??
 											'bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300'}"
 									>
 										{e.action}
@@ -661,10 +621,10 @@
 									{:else}
 										<span
 											class="font-mono text-xs tabular-nums {e.status < 300
-												? 'text-green-600 dark:text-green-400'
+												? 'status-2xx'
 												: e.status < 400
-													? 'text-blue-600'
-													: 'text-red-500'}"
+													? 'status-3xx'
+													: 'status-4xx'}"
 										>
 											{e.status}
 										</span>
@@ -743,4 +703,4 @@
 			/>
 		</div>
 	{/if}
-</div>
+</main>

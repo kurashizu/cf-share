@@ -1,6 +1,6 @@
 <svelte:head>
 	<title>API — Share</title>
-	<meta name="description" content="cf-share file sharing API docs." />
+	<meta name="description" content="KRSZ Share file sharing API docs." />
 </svelte:head>
 
 <script lang="ts">
@@ -10,7 +10,7 @@
 <main class="min-h-screen bg-neutral-50 dark:bg-neutral-950 p-6">
 	<article class="max-w-3xl mx-auto">
 		<h1 class="text-4xl font-bold tracking-tight text-neutral-900 dark:text-neutral-50 mb-1">
-			cf-share API
+			KRSZ Share API
 		</h1>
 		<p class="text-neutral-500 dark:text-neutral-400 mb-8">
 			<a href={APP_URL} class="text-blue-600 dark:text-blue-400 hover:underline">{APP_HOST}</a>
