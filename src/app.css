@@ -210,8 +210,8 @@ body {
    ════════════════════════════════════════════════════════════════════════ */
 .controls {
 	display: grid;
-	grid-template-columns: 100px 1fr 100px 2fr;   /* select:input = 1:2 */
-	gap: 14px 28px;                              /* column gap = 28px (more whitespace) */
+	grid-template-columns: 90px 1.5fr 90px 2fr;   /* select:input ≈ 3:4 (more balanced) */
+	gap: 12px 24px;                              /* generous gap between groups */
 	align-items: center;
 	margin-bottom: 20px;
 }
@@ -735,15 +735,14 @@ tr:hover .tag-act { border-color: var(--border-strong); }
 	margin: 20px 0;
 }
 .foot {
-	max-width: 1080px;            /* match wrap */
-	margin: 0 auto;
-	padding: 28px 24px;
-	border-top: 1px solid var(--border);
+	max-width: 1080px;
+	margin: 24px auto 32px;
+	padding: 0 24px;
 	color: var(--text-faint);
 	font-family: var(--mono);
-	font-size: 12px;              /* up from 11 */
-	display: flex;
-	justify-content: space-between;
+	font-size: 12px;
+	text-align: center;
+	letter-spacing: 0.04em;
 }
 
 /* ════════════════════════════════════════════════════════════════════════
@@ -839,7 +838,7 @@ pre code {
 	.pager { gap: 4px; }
 	.pager .btn, .pager .current { padding: 5px 10px; font-size: 12px; }
 
-	.foot { flex-direction: column; gap: 6px; text-align: center; padding: 18px 14px; }
+	.foot { margin: 20px auto 28px; padding: 0 14px; }
 }
 @media (max-width: 380px) {
 	.admin-grid { grid-template-columns: 1fr; }

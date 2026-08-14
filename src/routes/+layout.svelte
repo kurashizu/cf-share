@@ -7,6 +7,5 @@
 {@render children()}
 
 <footer class="foot">
-	<span>KRSZ Share · share.krsz.in</span>
-	<span>short-lived file sharing</span>
+	KRSZ Share · share.krsz.in
 </footer>
