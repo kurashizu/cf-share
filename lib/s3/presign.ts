@@ -42,6 +42,7 @@ export async function presignGet(args: {
   const cmd = new GetObjectCommand({
     Bucket: args.bucket,
     Key: args.key,
+    ResponseCacheControl: "private, no-store",
     ...(args.filename
       ? {
           ResponseContentDisposition: contentDisposition(args.filename),
