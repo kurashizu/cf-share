@@ -43,6 +43,36 @@ function downloadJson(
 	});
 }
 
+function cancellableBody(
+	body: ReadableStream<Uint8Array>,
+	abort: AbortController
+): ReadableStream<Uint8Array> {
+	const reader = body.getReader();
+	return new ReadableStream<Uint8Array>({
+		async pull(controller) {
+			try {
+				const result = await reader.read();
+				if (result.done) {
+					controller.close();
+					reader.releaseLock();
+					return;
+				}
+				controller.enqueue(result.value);
+			} catch (err) {
+				controller.error(err);
+			}
+		},
+		async cancel(reason) {
+			abort.abort(reason);
+			try {
+				await reader.cancel(reason);
+			} catch {
+				// The upstream may already be closed or aborted.
+			}
+		}
+	});
+}
+
 export const GET: RequestHandler = async ({
 	request,
 	platform,
@@ -162,11 +192,20 @@ export const GET: RequestHandler = async ({
 			upstreamHeaders.set('range', requestedRange);
 		}
 
+		const upstreamAbort = new AbortController();
+		const abortFromClient = () => upstreamAbort.abort(request.signal.reason);
+		if (request.signal.aborted) {
+			abortFromClient();
+		} else {
+			request.signal.addEventListener('abort', abortFromClient, { once: true });
+		}
+
 		const upstream = await fetch(dlUrl, {
 			headers: upstreamHeaders,
-			signal: request.signal
+			signal: upstreamAbort.signal
 		});
 		if (!upstream.ok && upstream.status !== 206 && upstream.status !== 304) {
+			upstreamAbort.abort();
 			console.error('[download] S3 proxy request failed', {
 				token,
 				status: upstream.status
@@ -210,8 +249,12 @@ export const GET: RequestHandler = async ({
 
 		// Native streaming passthrough — exactly one S3 GET per download request.
 		// The request signal cancels the upstream fetch when the client disconnects;
-		// there is no background reader that can continue consuming S3 afterward.
-		return new Response(upstream.body, {
+		// cancellableBody also cancels the reader explicitly when the response body
+		// is closed by the downstream runtime.
+		const responseBody = upstream.body
+			? cancellableBody(upstream.body, upstreamAbort)
+			: null;
+		return new Response(responseBody, {
 			status: upstream.status,
 			headers: responseHeaders
 		});
