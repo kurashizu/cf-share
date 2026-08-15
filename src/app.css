@@ -262,6 +262,20 @@ body::after {
 	text-shadow: 0 2px 18px rgba(0, 0, 0, 0.45);
 }
 .hero p { margin: 0; color: var(--text-dim); font-size: 15px; }
+.hero .slogan {
+	margin: 0 0 6px;
+	font-family: var(--sans);
+	font-size: 14px;
+	color: var(--text-dim);
+	letter-spacing: 0.04em;
+}
+.hero .slogan .letter {
+	color: var(--accent);
+	font-weight: 700;
+	font-family: var(--mono);
+	font-size: 1.05em;
+	text-shadow: 0 0 14px rgba(192, 132, 252, 0.45);
+}
 .hero-links {
 	display: flex;
 	gap: 8px;
