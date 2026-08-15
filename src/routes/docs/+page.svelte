@@ -7,8 +7,8 @@
 	import { APP_URL, APP_HOST } from '@/lib/config/app';
 </script>
 
-<main class="min-h-screen bg-neutral-50 dark:bg-neutral-950 p-6">
-	<article class="max-w-3xl mx-auto">
+<main class="min-h-screen bg-transparent p-6">
+	<article class="docs-wrap">
 		<h1 class="text-4xl font-bold tracking-tight text-neutral-900 dark:text-neutral-50 mb-1">
 			KRSZ Share API
 		</h1>
