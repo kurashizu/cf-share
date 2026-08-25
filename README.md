@@ -35,15 +35,15 @@ to short-lived presigned S3 URLs; file bytes do not pass through the Worker.
 | GET | `/p/:token` | `src/routes/p/[token]/+server.ts` | Proxy an unprotected small file through the Worker (threshold-limited) |
 | GET | `/api/download/:token` | `src/routes/api/download/[token]/+server.ts` | Authenticate and redirect to a presigned S3 URL; `?info=1` for JSON metadata |
 | POST | `/api/download/:token` | same | Verify password → return download URL |
-| POST | `/api/upload/init` | `+server.ts` | Reserve a presigned PUT URL (single or multipart) |
-| POST | `/api/upload/resume` | `+server.ts` | Re-sign missing multipart parts |
-| POST | `/api/upload/complete` | `+server.ts` | Mint a share token; returns `proxyUrl` for eligible unprotected small files |
+| POST | `/api/upload/init` | `+server.ts` | Reserve a presigned PUT URL (single or multipart); returns a signed `uploadSig` grant over `(key, size, contentType)` |
+| POST | `/api/upload/resume` | `+server.ts` | Re-sign missing multipart parts (requires `uploadSig`) |
+| POST | `/api/upload/complete` | `+server.ts` | Verify `uploadSig` + S3 object, mint a share token; returns `proxyUrl` for eligible unprotected small files |
 | GET | `/api/health` | `+server.ts` | `{ status, db, s3, limits }` |
 | GET/POST | `/api/admin/shares` | `+server.ts` | List shares (authenticated) |
 | GET/POST | `/api/admin/audit` | `+server.ts` | List audit log (authenticated) |
 | DELETE | `/api/admin/delete?token=X` | `+server.ts` | Delete a share (authenticated) |
 | GET | `/api/admin/me` | `+server.ts` | Check whether the current session is authenticated |
-| POST | `/api/admin/login` | `+server.ts` | Submit admin password, set `cf_admin` JWT cookie |
+| POST | `/api/admin/login` | `+server.ts` | Submit admin password, set `cf_admin` JWT cookie (rate-limited 5/min/IP) |
 | POST | `/api/admin/logout` | `+server.ts` | Clear the `cf_admin` cookie |
 | GET/POST | `/api/cron/cleanup` | `+server.ts` | Manual cleanup trigger (requires `CRON_SECRET`) |
 
