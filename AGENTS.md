@@ -68,7 +68,7 @@ that route streams the complete S3 body without buffering and does not support R
 - Max file: 5 GB (anon), 100 GB (admin via JWT cookie)
 - TTL: 5 min to 7 days (default 24h)
 - Per-IP daily: 20 GB / 100 files (admin bypasses)
-- S3 pool: 100 GB total (admin bypasses)
+- S3 pool: 100 GB / 50,000 active shares total (admin bypasses)
 - Proxied link threshold: 2 MiB by default (`PROXY_MAX_FILE_SIZE`), unprotected files only
 - Rate limits: 30 init / 30 complete / 60 download / 30 lookup per 60s (admin bypasses)
 - Presigned PUT URL TTL: 1 hour (multipart uploads for large files)
@@ -77,7 +77,9 @@ that route streams the complete S3 body without buffering and does not support R
 
 ## Token Format
 
-4 chars `[0-9A-Z]` (1,679,616 combos). Collisions extend to 5 then 6 chars.
+Fixed 4 chars `[0-9A-Z]` (1,679,616 combos); collisions redraw at the same
+length. The active-share pool is capped at `MAX_TOTAL_COUNT` (50k) so random
+generation never starves. Legacy 5-6 char tokens still validate.
 See `lib/share/token.ts`.
 
 ## Key Files

@@ -624,27 +624,31 @@
 		</div>
 
 		<div class="controls">
-			<label for="ttl-select">expires in</label>
-			<select
-				bind:value={ttl}
-				id="ttl-select"
-				class="select"
-				disabled={active !== null && active.state.kind !== 'error'}
-			>
-				{#each ttlPresets as opt (opt.value)}
-					<option value={opt.value}>{opt.label}</option>
-				{/each}
-			</select>
+			<div class="field">
+				<label for="ttl-select">expires in</label>
+				<select
+					bind:value={ttl}
+					id="ttl-select"
+					class="select"
+					disabled={active !== null && active.state.kind !== 'error'}
+				>
+					{#each ttlPresets as opt (opt.value)}
+						<option value={opt.value}>{opt.label}</option>
+					{/each}
+				</select>
+			</div>
 
-			<label for="password-input">password</label>
-			<input
-				bind:value={password}
-				id="password-input"
-				class="input"
-				type="password"
-				placeholder="leave empty for no password"
-				disabled={active !== null && active.state.kind !== 'error'}
-			/>
+			<div class="field">
+				<label for="password-input">password <span class="optional">· optional</span></label>
+				<input
+					bind:value={password}
+					id="password-input"
+					class="input"
+					type="password"
+					placeholder="no password"
+					disabled={active !== null && active.state.kind !== 'error'}
+				/>
+			</div>
 		</div>
 
 		{#if mode === 'text'}

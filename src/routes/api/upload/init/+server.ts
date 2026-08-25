@@ -178,15 +178,20 @@ export const POST: RequestHandler = async ({ request, platform, getClientAddress
 	// ── Total S3 pool limit (100 GB) — skipped for admin ──
 	if (!isAdmin) {
 		const maxTotalBytes = Number(env.MAX_TOTAL_BYTES);
-		if (maxTotalBytes > 0) {
+		// Active-share count cap. Keeps the pool a small fraction of the 4-char
+		// token space (36^4 = 1.68M) so fixed-length token generation cannot be
+		// starved by many tiny uploads that stay under the byte cap.
+		const maxTotalCount = Number(env.MAX_TOTAL_COUNT ?? 0);
+		if (maxTotalBytes > 0 || maxTotalCount > 0) {
 			try {
 				const totalRow = await env.DB.prepare(
-					`SELECT COALESCE(SUM(size_bytes), 0) AS total FROM shares WHERE expires_at > ?1`
+					`SELECT COALESCE(SUM(size_bytes), 0) AS total, COUNT(*) AS cnt FROM shares WHERE expires_at > ?1`
 				)
 					.bind(Date.now())
-					.first<{ total: number }>();
+					.first<{ total: number; cnt: number }>();
 				const currentTotal = totalRow?.total ?? 0;
-				if (currentTotal + size > maxTotalBytes) {
+				const currentCount = totalRow?.cnt ?? 0;
+				if (maxTotalBytes > 0 && currentTotal + size > maxTotalBytes) {
 					await audit(env, {
 						ip,
 						action: 'init',
@@ -201,6 +206,24 @@ export const POST: RequestHandler = async ({ request, platform, getClientAddress
 					return json(
 						{
 							error: `Total storage pool limit exceeded (max ${maxTotalBytes} bytes across all shares)`
+						},
+						{ status: 429 }
+					);
+				}
+				if (maxTotalCount > 0 && currentCount >= maxTotalCount) {
+					await audit(env, {
+						ip,
+						action: 'init',
+						status: 429,
+						detail: {
+							reason: 'total-count-exceeded',
+							currentCount,
+							maxTotalCount
+						}
+					});
+					return json(
+						{
+							error: `Total share count limit exceeded (max ${maxTotalCount} active shares)`
 						},
 						{ status: 429 }
 					);

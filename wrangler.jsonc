@@ -95,6 +95,9 @@
     "MAX_DAILY_BYTES_PER_IP": "21474836480",
     "MAX_DAILY_COUNT_PER_IP": "100",
     "MAX_TOTAL_BYTES": "107374182400",
+    // Active-share count cap — keeps the pool a small fraction of the
+    // 4-char token space (36^4 = 1.68M) so fixed-length tokens never starve.
+    "MAX_TOTAL_COUNT": "50000",
     "UPLOAD_URL_TTL": "3600",
     "PROXY_MAX_FILE_SIZE": "2097152",
     "ADMIN_JWT_TTL_SECONDS": "28800",

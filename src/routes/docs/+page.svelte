@@ -23,13 +23,14 @@
 			Share codes
 		</h2>
 		<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-3">
-			Every share is addressed by a short token: 4 chars from{" "}
-			<code>[0-9A-Z]</code>, extended to 5–6 chars only on collision. The token
-			is the whole address — <code>{APP_HOST}/d/ABCD</code> — so it can be read
-			aloud, typed on another device, or scanned from the QR code shown after
-			upload. The home page has a code input that looks the share up and jumps
-			straight to it; lookups are rate-limited (30/min per IP) to keep the code
-			space unenumerable.
+			Every share is addressed by a short token: a fixed <strong>4 chars</strong>{" "}
+			from <code>[0-9A-Z]</code> (1.68M combinations; the active-share pool is
+			capped at a small fraction of that, so random generation never runs dry).
+			The token is the whole address — <code>{APP_HOST}/d/ABCD</code> — so it can
+			be read aloud, typed on another device, or scanned from the QR code shown
+			after upload. The home page has a code input that looks the share up and
+			jumps straight to it; lookups are rate-limited (30/min per IP) to keep the
+			code space unenumerable.
 		</p>
 
 		<!-- ── Anonymous Upload Flow ──────────────────────────────────────── -->

@@ -1,14 +1,10 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 
-	// Tokens are 4 chars by default, extended to 5-6 on collision (rare).
-	// Start with 4 cells; when a filled 4-char code isn't found we grow one
-	// cell at a time so longer codes can be typed without a mode switch.
-	const MIN_LEN = 4;
-	const MAX_LEN = 6;
+	// Share codes are a fixed 4 chars of [0-9A-Z] (see lib/share/token.ts).
+	const LEN = 4;
 
-	let cellCount = $state(MIN_LEN);
-	let cells = $state<string[]>(Array(MIN_LEN).fill(''));
+	let cells = $state<string[]>(Array(LEN).fill(''));
 	let refs: (HTMLInputElement | null)[] = [];
 	let checking = $state(false);
 	let errorMsg = $state('');
@@ -22,29 +18,21 @@
 
 	/** Accept a full share URL or a bare code and return the token part. */
 	function extractToken(raw: string): string {
-		const m = raw.match(/\/(?:d|p)\/([0-9A-Za-z]{4,6})/);
-		return sanitize(m ? m[1] : raw).slice(0, MAX_LEN);
-	}
-
-	function setCellCount(n: number) {
-		cellCount = n;
-		cells = Array.from({ length: n }, (_, i) => cells[i] ?? '');
+		const m = raw.match(/\/(?:d|p)\/([0-9A-Za-z]{4})/);
+		return sanitize(m ? m[1] : raw).slice(0, LEN);
 	}
 
 	function focusCell(i: number) {
-		queueMicrotask(() => refs[Math.max(0, Math.min(i, cellCount - 1))]?.select());
+		queueMicrotask(() => refs[Math.max(0, Math.min(i, LEN - 1))]?.select());
 	}
 
 	/** Write a run of characters starting at cell `start`, then advance. */
 	function fillFrom(start: number, chars: string) {
 		if (chars.length === 0) return;
-		// A paste longer than the current cells grows the input (up to 6).
-		const needed = Math.min(MAX_LEN, Math.max(cellCount, start + chars.length));
-		if (needed > cellCount) setCellCount(needed);
 		const next = [...cells];
 		let i = start;
 		for (const ch of chars) {
-			if (i >= cellCount) break;
+			if (i >= LEN) break;
 			next[i++] = ch;
 		}
 		cells = next;
@@ -81,15 +69,11 @@
 				cells = next;
 				focusCell(i - 1);
 			}
-			// Shrink back once the extended tail is empty again.
-			if (cellCount > MIN_LEN && next.slice(MIN_LEN).every((c) => c === '')) {
-				setCellCount(MIN_LEN);
-			}
 			errorMsg = '';
 		} else if (e.key === 'ArrowLeft' && i > 0) {
 			e.preventDefault();
 			focusCell(i - 1);
-		} else if (e.key === 'ArrowRight' && i < cellCount - 1) {
+		} else if (e.key === 'ArrowRight' && i < LEN - 1) {
 			e.preventDefault();
 			focusCell(i + 1);
 		} else if (e.key === 'Escape') {
@@ -97,7 +81,7 @@
 			clearAll();
 		} else if (e.key === 'Enter') {
 			e.preventDefault();
-			if (code.length >= MIN_LEN) void submit();
+			if (code.length === LEN) void submit();
 		}
 	}
 
@@ -105,21 +89,26 @@
 		e.preventDefault();
 		const token = extractToken(e.clipboardData?.getData('text/plain') ?? '');
 		if (!token) return;
-		clearAll();
+		cells = Array(LEN).fill('');
 		fillFrom(0, token);
 	}
 
 	function clearAll() {
-		setCellCount(MIN_LEN);
-		cells = Array(MIN_LEN).fill('');
+		cells = Array(LEN).fill('');
 		errorMsg = '';
 		focusCell(0);
+	}
+
+	function notFound(msg: string) {
+		errorMsg = msg;
+		shaking = true;
+		setTimeout(() => (shaking = false), 450);
 	}
 
 	async function submit() {
 		if (checking) return;
 		const candidate = code;
-		if (!/^[0-9A-Z]{4,6}$/.test(candidate)) return;
+		if (!/^[0-9A-Z]{4}$/.test(candidate)) return;
 		checking = true;
 		errorMsg = '';
 		try {
@@ -129,16 +118,9 @@
 				return;
 			}
 			if (r.status === 429) {
-				errorMsg = 'too many attempts — wait a minute and retry';
-			} else if (cellCount < MAX_LEN) {
-				// Not found at this length: maybe it's a longer code.
-				setCellCount(cellCount + 1);
-				errorMsg = `no ${candidate.length}-char share — keep typing if the code is longer`;
-				focusCell(cellCount - 1);
+				notFound('too many attempts — wait a minute and retry');
 			} else {
-				errorMsg = 'code not found or expired';
-				shaking = true;
-				setTimeout(() => (shaking = false), 450);
+				notFound('code not found or expired');
 			}
 		} catch {
 			// Network hiccup on the pre-check: navigate anyway, /d handles it.
@@ -162,7 +144,7 @@
 			aria-label="share code"
 			onpaste={onPaste}
 		>
-			{#each { length: cellCount } as _, i (i)}
+			{#each { length: LEN } as _, i (i)}
 				<input
 					bind:this={refs[i]}
 					class="code-cell {cells[i] ? 'filled' : ''}"
@@ -171,7 +153,7 @@
 					autocomplete="off"
 					autocapitalize="characters"
 					spellcheck="false"
-					maxlength={MAX_LEN}
+					maxlength={LEN}
 					value={cells[i]}
 					disabled={checking}
 					aria-label={`code character ${i + 1}`}

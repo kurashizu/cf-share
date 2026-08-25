@@ -1,13 +1,15 @@
 /**
  * Share-link token generation.
  *
- * Format: [0-9A-Z]{4-6}
- *   - 4 chars: 1,679,616 combinations (chosen for memorability)
- *   - On collision, extend to 5 then 6 chars
+ * Format: fixed [0-9A-Z]{4} — 1,679,616 combinations, chosen for
+ * memorability (read aloud, typed on another device, OTP-style entry).
  *
- * Collision handling: caller passes a `exists` function; if the token is
- * already taken, we extend length and retry. This is safe because length
- * only grows (so existing shorter tokens remain valid).
+ * Collision handling: caller passes an `exists` function; on collision we
+ * simply redraw. The active-share pool is capped at MAX_TOTAL_COUNT
+ * (a small fraction of the token space, enforced in upload/init), so the
+ * per-draw collision probability stays low and 32 consecutive collisions
+ * are statistically impossible. If it ever happens we fail loudly rather
+ * than silently extending the code length.
  */
 
 const ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -24,26 +26,29 @@ export function generateToken(length = 4): string {
 }
 
 /**
- * Generate a unique token. Tries lengths 4 → 5 → 6 in order.
+ * Generate a unique 4-char token by redrawing on collision.
  *
  * @param exists async function that returns true if the candidate is taken
- * @param maxAttempts per length before giving up and moving on
- * @throws if no token found in [4, 5, 6] within maxAttempts each
+ * @param maxAttempts redraws before giving up
+ * @throws if every attempt collides (only possible if the pool-count cap
+ *         is misconfigured or bypassed far beyond the token space)
  */
 export async function generateUniqueToken(
 	exists: (token: string) => Promise<boolean>,
-	maxAttempts = 10,
+	maxAttempts = 32,
 ): Promise<string> {
-	for (const len of [4, 5, 6]) {
-		for (let i = 0; i < maxAttempts; i++) {
-			const candidate = generateToken(len);
-			if (!(await exists(candidate))) return candidate;
-		}
+	for (let i = 0; i < maxAttempts; i++) {
+		const candidate = generateToken(4);
+		if (!(await exists(candidate))) return candidate;
 	}
 	throw new Error("Could not generate a unique token after maximum attempts");
 }
 
-/** Validate that a string is a well-formed token (defensive, not strictly needed). */
+/**
+ * Validate that a string is a well-formed token. Accepts 4-6 chars so any
+ * pre-existing extended token from the old collision scheme keeps working;
+ * new tokens are always 4 chars.
+ */
 export function isValidToken(s: unknown): s is string {
 	if (typeof s !== "string") return false;
 	return /^[0-9A-Z]{4,6}$/.test(s);
