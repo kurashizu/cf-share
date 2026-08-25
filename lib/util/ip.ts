@@ -1,32 +1,20 @@
 /**
  * Extract the client IP from a Cloudflare Worker request.
  *
- * On Cloudflare, `request.cf?.clientIP` (preferred) or `cf-connecting-ip`
- * header are both reliable. We fall back through the headers that Cloudflare
- * itself sets so this also works behind `wrangler dev` (which uses
- * `cf-connecting-ip` for the local client).
+ * Only Cloudflare-set sources are trusted: `request.cf.clientIP`,
+ * `cf-connecting-ip` (also set by `wrangler dev`), then the adapter's
+ * `getClientAddress()` passed as `fallback`. Client-forgeable headers like
+ * `x-forwarded-for` are deliberately NOT consulted — rate limits and quotas
+ * key off this value, so honoring spoofable headers would let anyone reset
+ * their quota per request.
  */
 export function getClientIp(request: Request, fallback?: string): string {
 	const cf = (request as Request & { cf?: { clientIP?: string } }).cf;
 	if (cf?.clientIP) return cf.clientIP;
 
-	const headers = request.headers;
-	const candidates = [
-		"cf-connecting-ip",
-		"x-forwarded-for",
-		"x-real-ip",
-		"true-client-ip",
-	];
-	for (const h of candidates) {
-		const v = headers.get(h);
-		if (v) {
-			// x-forwarded-for may be a comma-separated list — first is the client.
-			const first = v.split(",")[0]?.trim();
-			if (first) return first;
-		}
-	}
-	// In SvelteKit the adapter provides `event.getClientAddress()`
-	// (cf-connecting-ip) — use that as the last resort.
+	const connecting = request.headers.get("cf-connecting-ip")?.trim();
+	if (connecting) return connecting;
+
 	return fallback ?? "0.0.0.0";
 }
 

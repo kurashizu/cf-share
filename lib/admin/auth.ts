@@ -77,9 +77,8 @@ function utf8Decode(b: Uint8Array): string {
 /* ── HMAC-SHA256 (via Web Crypto) ──────────────────────────────────── */
 
 /**
- * Derive the HMAC key from the configured secret. We accept arbitrary-length
- * secrets and hash them down to 32 bytes so callers don't have to remember
- * to pre-pad.
+ * Import the configured secret as an HMAC-SHA256 key. Arbitrary-length
+ * secrets are fine — HMAC handles keying internally.
  */
 async function importHmacKey(secret: string): Promise<CryptoKey> {
   return crypto.subtle.importKey(
@@ -141,12 +140,7 @@ export async function verifyAdminJwt(
   const parts = token.split(".");
   if (parts.length !== 3) return null;
   const [headerB64, payloadB64, sigB64] = parts;
-  let signingInput: string;
-  try {
-    signingInput = `${headerB64}.${payloadB64}`;
-  } catch {
-    return null;
-  }
+  const signingInput = `${headerB64}.${payloadB64}`;
   const key = await importHmacKey(env.ADMIN_JWT_SECRET);
   // Re-derive the expected signature and compare in constant time.
   const computed = new Uint8Array(

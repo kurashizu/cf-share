@@ -14,12 +14,16 @@ import { createShare, incrementQuota, readQuota } from '@/lib/share/store';
 import { hashPassword, isValidPassword } from '@/lib/share/password';
 import { requestIsAuthorized } from '@/lib/admin/auth';
 import { canProxyFile } from '@/lib/config/proxy';
+import { verifyUploadGrant, isValidUploadKey } from '@/lib/share/upload-grant';
+import { checkPoolCapacity } from '@/lib/share/pool';
 
 interface CompleteBody {
 	mode?: unknown;
 	uploadId?: unknown;
 	s3UploadId?: unknown;
 	key?: unknown;
+	/** Grant signature issued by /api/upload/init — required. */
+	uploadSig?: unknown;
 	filename?: unknown;
 	size?: unknown;
 	contentType?: unknown;
@@ -144,6 +148,26 @@ async function handleComplete(
 		);
 	}
 
+	// ── Verify the upload grant ──
+	// The key must be one this server issued at init, and (size, contentType)
+	// must be exactly what init validated and quota-checked. Without this,
+	// complete would mint shares for arbitrary keys and trust arbitrary sizes.
+	if (
+		!isValidUploadKey(key) ||
+		!(await verifyUploadGrant(env, body.uploadSig, { key, size, contentType }))
+	) {
+		await audit(env, {
+			ip,
+			action: 'complete',
+			status: 403,
+			detail: { reason: 'invalid-upload-grant', key, size, contentType }
+		});
+		return json(
+			{ error: 'Invalid or missing uploadSig for this key/size/contentType' },
+			{ status: 403 }
+		);
+	}
+
 	// Detect mode
 	const isMultipart = body.mode === 'multipart' || Array.isArray(body.parts);
 
@@ -230,6 +254,24 @@ async function handleComplete(
 		dayKey = utcDayKey();
 	}
 
+	// ── Total pool limit — also enforced here so calling complete directly
+	// (skipping init) cannot bypass it. Skipped for admin, like at init. ──
+	if (!isAdmin) {
+		const pool = await checkPoolCapacity(env, size);
+		if (!pool.ok) {
+			await audit(env, {
+				ip,
+				action: 'complete',
+				status: 429,
+				detail: { reason: pool.reason, requested: size, pool }
+			});
+			return json(
+				{ error: 'Total storage pool limit exceeded' },
+				{ status: 429 }
+			);
+		}
+	}
+
 	const client = createS3Client(env);
 
 	// ──────────────────────────────────────────────────────────────────
@@ -312,6 +354,42 @@ async function handleComplete(
 				{ error: 'Failed to finalize multipart upload on S3' },
 				{ status: 500 }
 			);
+		}
+
+		// Best-effort size check: part presign URLs don't bind part length, so
+		// the assembled object could differ from the grant-approved size. If
+		// HEAD works and disagrees, reject and delete; if HEAD fails (WAF),
+		// proceed on the grant-verified declaration.
+		try {
+			const head = await client.send(
+				new HeadObjectCommand({ Bucket: bucketName(env), Key: key })
+			);
+			const objSize =
+				typeof head.ContentLength === 'number' ? head.ContentLength : -1;
+			if (objSize >= 0 && objSize !== size) {
+				await audit(env, {
+					ip,
+					action: 'complete',
+					status: 400,
+					detail: {
+						reason: 'multipart-size-mismatch',
+						key,
+						declaredSize: size,
+						actualSize: objSize
+					}
+				});
+				await safeDeleteS3Object(client, bucketName(env), key);
+				return json(
+					{ error: 'Assembled object does not match declared size' },
+					{ status: 400 }
+				);
+			}
+		} catch (err) {
+			console.warn('[complete] multipart HeadObject failed, trusting grant', {
+				key,
+				size,
+				err: err instanceof Error ? err.message : String(err)
+			});
 		}
 
 		// ── Mint token ──
@@ -429,29 +507,65 @@ async function handleComplete(
 		);
 	}
 
-	// Verify the object actually exists in S3 before minting a share token.
-	// MinIO via Cloudflare WAF sometimes blocks HeadObject from Workers (err
-	// 1010), so on failure we trust the client's presigned-PUT success and
-	// audit-log the skip rather than failing the upload entirely.
-	let verified = false;
+	// Verify the object actually exists in S3 and matches the declared size
+	// before minting a share token. Presigned PUT URLs do not bind
+	// Content-Length, so this HEAD is the only check that the uploaded bytes
+	// match what the quota was charged for.
+	//
+	//   - HEAD 404                → reject (object was never uploaded).
+	//   - HEAD ok, size mismatch  → reject + delete (quota-accounting lie).
+	//   - HEAD ok, etag mismatch  → reject (wrong/partial object).
+	//   - HEAD fails otherwise    → trust the grant-verified declaration and
+	//     audit the skip. MinIO behind the Cloudflare WAF sometimes blocks
+	//     HeadObject from Workers (err 1010); failing hard here would take
+	//     uploads down whenever the WAF acts up.
 	let headError: string | null = null;
 	try {
 		const head = await client.send(
 			new HeadObjectCommand({ Bucket: bucketName(env), Key: key })
 		);
-		if (
-			head &&
-			typeof head.ContentLength === 'number' &&
-			head.ContentLength > 0
-		) {
-			const objSize = head.ContentLength;
-			const objEtag =
-				typeof head.ETag === 'string' ? head.ETag.replace(/"/g, '') : '';
-			if (objSize === size && objEtag === etag) {
-				verified = true;
+		const objSize =
+			typeof head.ContentLength === 'number' ? head.ContentLength : -1;
+		const objEtag =
+			typeof head.ETag === 'string' ? head.ETag.replace(/"/g, '') : '';
+		if (objSize !== size || objEtag !== etag) {
+			await audit(env, {
+				ip,
+				action: 'complete',
+				status: 400,
+				detail: {
+					reason: 'verify-mismatch',
+					key,
+					declaredSize: size,
+					actualSize: objSize,
+					declaredEtag: etag,
+					actualEtag: objEtag
+				}
+			});
+			if (objSize !== size) {
+				// The uploaded bytes don't match the approved grant — remove them.
+				await safeDeleteS3Object(client, bucketName(env), key);
 			}
+			return json(
+				{ error: 'Uploaded object does not match declared size/etag' },
+				{ status: 400 }
+			);
 		}
 	} catch (err) {
+		const httpStatus = (err as { $metadata?: { httpStatusCode?: number } })
+			.$metadata?.httpStatusCode;
+		if (httpStatus === 404) {
+			await audit(env, {
+				ip,
+				action: 'complete',
+				status: 400,
+				detail: { reason: 'object-not-found', key, size, etag }
+			});
+			return json(
+				{ error: 'No uploaded object found for this key' },
+				{ status: 400 }
+			);
+		}
 		headError = err instanceof Error ? err.message : String(err);
 		console.warn('[complete] HeadObject failed, trusting client PUT', {
 			key,
@@ -459,22 +573,11 @@ async function handleComplete(
 			etag,
 			err: headError
 		});
-	}
-
-	if (!verified) {
 		await audit(env, {
 			ip,
 			action: 'complete',
 			status: 200,
-			detail: {
-				reason: 'verify-skipped',
-				key,
-				size,
-				etag,
-				s3Error:
-					headError ??
-					'HeadObject did not match client-reported size/etag; trusting client-reported PUT success'
-			}
+			detail: { reason: 'verify-skipped', key, size, etag, s3Error: headError }
 		});
 	}
 

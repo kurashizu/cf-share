@@ -11,11 +11,15 @@ import {
 import { checkRateLimit } from '@/lib/rate-limit/check';
 import { getClientIp } from '@/lib/util/ip';
 import { audit } from '@/lib/util/audit';
+import { verifyUploadGrant, isValidUploadKey } from '@/lib/share/upload-grant';
 
 interface ResumeBody {
 	s3UploadId?: unknown;
 	key?: unknown;
 	size?: unknown;
+	contentType?: unknown;
+	/** Grant signature issued by /api/upload/init — required. */
+	uploadSig?: unknown;
 	/** Part numbers the client already PUT successfully (from localStorage). */
 	uploadedPartNumbers?: unknown;
 }
@@ -25,6 +29,8 @@ interface ResumeResponse {
 	uploadId: string;
 	s3UploadId: string;
 	key: string;
+	/** Echoed back so the client can pass it to complete. */
+	uploadSig: string;
 	/** Presigned URLs for the parts still needed. */
 	parts: PartPresign[];
 	partSize: number;
@@ -88,11 +94,33 @@ async function handleResume(
 		typeof body.s3UploadId === 'string' ? body.s3UploadId.trim() : '';
 	const key = typeof body.key === 'string' ? body.key.trim() : '';
 	const size = typeof body.size === 'number' ? body.size : -1;
+	const contentType =
+		typeof body.contentType === 'string' ? body.contentType.trim() : '';
+	const uploadSig =
+		typeof body.uploadSig === 'string' ? body.uploadSig : '';
 
-	if (!s3UploadId || !key || size < 1) {
+	if (!s3UploadId || !key || !contentType || size < 1) {
 		return json(
-			{ error: 's3UploadId, key, and positive size are required' },
+			{ error: 's3UploadId, key, contentType, and positive size are required' },
 			{ status: 400 }
+		);
+	}
+
+	// Only re-sign part URLs for uploads this server actually approved at
+	// init — otherwise resume would presign writes to arbitrary keys.
+	if (
+		!isValidUploadKey(key) ||
+		!(await verifyUploadGrant(env, uploadSig, { key, size, contentType }))
+	) {
+		await audit(env, {
+			ip,
+			action: 'init',
+			status: 403,
+			detail: { reason: 'invalid-upload-grant', source: 'resume', key, size }
+		});
+		return json(
+			{ error: 'Invalid or missing uploadSig for this key/size/contentType' },
+			{ status: 403 }
 		);
 	}
 
@@ -186,6 +214,7 @@ async function handleResume(
 		uploadId: ourUploadId,
 		s3UploadId,
 		key,
+		uploadSig,
 		parts,
 		partSize,
 		expiresIn

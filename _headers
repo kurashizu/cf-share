@@ -1,3 +1,6 @@
 # https://developers.cloudflare.com/workers/static-assets/headers
+/*
+  X-Content-Type-Options: nosniff
+
 /_app/immutable/*
   Cache-Control: public,max-age=31536000,immutable

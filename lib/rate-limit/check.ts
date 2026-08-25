@@ -21,7 +21,7 @@ export async function checkRateLimit(
     | "UPLOAD_COMPLETE_LIMIT"
     | "DOWNLOAD_LIMIT"
     | "DOWNLOAD_LOOKUP_LIMIT"
-    | "GLOBAL_IP_DAILY"
+    | "ADMIN_LOGIN_LIMIT"
   >,
   key: string,
 ): Promise<{ success: boolean }> {
@@ -29,12 +29,17 @@ export async function checkRateLimit(
     | { limit: (options: { key: string }) => Promise<{ success: boolean }> }
     | undefined;
   if (!limiter) {
+    // Fail open, but loudly — in production a missing binding means the
+    // limit is silently not enforced, which should show up in logs.
+    console.error(`[rate-limit] binding ${binding} missing; failing open`);
     return { success: true };
   }
   try {
     return await limiter.limit({ key });
-  } catch {
-    // Fail open on unexpected errors to avoid taking the app down.
+  } catch (err) {
+    console.error(`[rate-limit] ${binding}.limit() threw; failing open`, {
+      err: err instanceof Error ? err.message : String(err),
+    });
     return { success: true };
   }
 }

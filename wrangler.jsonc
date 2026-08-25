@@ -68,11 +68,12 @@
         "period": 60,
       },
     },
+    // Admin login brute-force guard — strict on purpose: 5 attempts/min/IP.
     {
-      "name": "GLOBAL_IP_DAILY",
-      "namespace_id": "3004",
+      "name": "ADMIN_LOGIN_LIMIT",
+      "namespace_id": "3006",
       "simple": {
-        "limit": 60,
+        "limit": 5,
         "period": 60,
       },
     },

@@ -8,6 +8,7 @@ import {
 import { serializeCookie } from '@/lib/admin/cookie';
 import { audit } from '@/lib/util/audit';
 import { getClientIp } from '@/lib/util/ip';
+import { checkRateLimit } from '@/lib/rate-limit/check';
 
 /**
  * POST /api/admin/login
@@ -20,6 +21,20 @@ import { getClientIp } from '@/lib/util/ip';
 export const POST: RequestHandler = async ({ request, platform, getClientAddress }) => {
 	const env = platform!.env;
 	const ip = getClientIp(request, getClientAddress());
+
+	// Brute-force guard: ADMIN_PASSWORD is the only credential protecting the
+	// admin bypass (100 GB uploads, no-expiry shares, delete). Without this,
+	// online guessing is bounded only by Worker throughput.
+	const rl = await checkRateLimit(env, 'ADMIN_LOGIN_LIMIT', ip);
+	if (!rl.success) {
+		await audit(env, {
+			ip,
+			action: 'admin_view',
+			status: 429,
+			detail: { reason: 'login-rate-limit' }
+		});
+		return json({ error: 'Too Many Requests' }, { status: 429 });
+	}
 
 	let body: { password?: unknown };
 	try {

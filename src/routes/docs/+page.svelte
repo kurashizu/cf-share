@@ -109,7 +109,9 @@
 			If a multipart upload is interrupted (page refresh, network failure), call with{" "}
 			<code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">s3UploadId</code>,{" "}
 			<code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">key</code>,{" "}
-			<code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">size</code>, and{" "}
+			<code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">size</code>,{" "}
+			<code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">contentType</code>,{" "}
+			<code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">uploadSig</code> (both from init), and{" "}
 			<code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">uploadedPartNumbers: number[]</code> to
 			get fresh presigned URLs for the missing parts only. Client tracks uploaded parts in
 			localStorage.
@@ -133,6 +135,10 @@
 					</tr>
 				</thead>
 				<tbody>
+					<tr class="border-b border-neutral-200 dark:border-neutral-800">
+						<td class="py-2 pr-4"><code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">uploadSig</code></td>
+						<td class="py-2">Required — grant signature from the init response; <code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">key</code>/<code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">size</code>/<code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">contentType</code> must match init exactly</td>
+					</tr>
 					<tr class="border-b border-neutral-200 dark:border-neutral-800">
 						<td class="py-2 pr-4"><code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">etag</code></td>
 						<td class="py-2">Required for single mode (from PUT response)</td>
@@ -180,9 +186,9 @@
 			<code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">GET /api/download/:token</code> — Authenticate and redirect to S3
 		</h3>
 		<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-2">
-			After the share/password checks, the Worker returns a short-lived <code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">307</code> redirect to a presigned S3 URL. File bytes go directly from S3 to the client; Range headers are handled by S3. Append{" "}
-			<code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">?info=1</code> for JSON metadata or{" "}
-			<code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">?password=X</code> for protected shares.
+			After the share checks, the Worker returns a short-lived <code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">307</code> redirect to a presigned S3 URL. File bytes go directly from S3 to the client; Range headers are handled by S3. Append{" "}
+			<code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">?info=1</code> for JSON metadata. Password-protected shares must use the{" "}
+			<code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">POST</code> endpoint below — passwords are never accepted in the URL.
 		</p>
 
 		<h3 class="text-xl font-semibold mt-6 mb-3 text-neutral-800 dark:text-neutral-100">
@@ -404,6 +410,7 @@ INIT=$(curl -fsS -X POST "${APP_URL}/api/upload/init" \\
 URL=$(echo "$INIT" | sed -n 's/.*"url":"\\([^"]*\\)".*/\\1/p')
 KEY=$(echo "$INIT" | sed -n 's/.*"key":"\\([^"]*\\)".*/\\1/p')
 UID=$(echo "$INIT" | sed -n 's/.*"uploadId":"\\([^"]*\\)".*/\\1/p')
+SIG=$(echo "$INIT" | sed -n 's/.*"uploadSig":"\\([^"]*\\)".*/\\1/p')
 
 # 2. PUT to S3 (capture ETag)
 ETAG=$(curl -fsS -X PUT "$URL" -H "Content-Type: image/jpeg" \\
@@ -412,10 +419,14 @@ ETAG=$(curl -fsS -X PUT "$URL" -H "Content-Type: image/jpeg" \\
 # 3. Complete
 curl -fsS -X POST "${APP_URL}/api/upload/complete" \\
   -H "Content-Type: application/json" \\
-  -d "{\\"uploadId\\":\\"$UID\\",\\"key\\":\\"$KEY\\",\\"filename\\":\\"photo.jpg\\",\\"size\\":1048576,\\"contentType\\":\\"image/jpeg\\",\\"etag\\":\\"$ETAG\\",\\"ttl\\":86400}"
+  -d "{\\"uploadId\\":\\"$UID\\",\\"key\\":\\"$KEY\\",\\"uploadSig\\":\\"$SIG\\",\\"filename\\":\\"photo.jpg\\",\\"size\\":1048576,\\"contentType\\":\\"image/jpeg\\",\\"etag\\":\\"$ETAG\\",\\"ttl\\":86400}"
 
-# 4. Download (follows the 307 redirect to S3; add ?password=X for protected shares)
-curl -fsSL "${APP_URL}/api/download/ABCD" -o downloaded-file`}</code></pre>
+# 4. Download (follows the 307 redirect to S3)
+curl -fsSL "${APP_URL}/api/download/ABCD" -o downloaded-file
+
+# 4b. Password-protected shares: verify via POST, then fetch the returned URL
+curl -fsS -X POST "${APP_URL}/api/download/ABCD" \\
+  -H "Content-Type: application/json" -d '{"password":"hunter2"}'`}</code></pre>
 
 		<div class="mt-12 text-center text-sm text-neutral-500 dark:text-neutral-500">
 			<a href="/" class="text-blue-600 dark:text-blue-400 hover:underline">← Back to upload</a>

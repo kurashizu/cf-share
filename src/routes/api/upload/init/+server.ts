@@ -12,6 +12,8 @@ import { checkRateLimit } from '@/lib/rate-limit/check';
 import { getClientIp } from '@/lib/util/ip';
 import { audit } from '@/lib/util/audit';
 import { requestIsAuthorized } from '@/lib/admin/auth';
+import { signUploadGrant } from '@/lib/share/upload-grant';
+import { checkPoolCapacity } from '@/lib/share/pool';
 
 interface InitBody {
 	filename?: unknown;
@@ -25,6 +27,8 @@ interface SingleResponse {
 	mode: 'single';
 	uploadId: string;
 	key: string;
+	/** HMAC over (key, size, contentType) — echo back at complete. */
+	uploadSig: string;
 	url: string;
 	headers: { 'Content-Type': string };
 	expiresIn: number;
@@ -35,6 +39,8 @@ interface MultipartResponse {
 	uploadId: string;
 	s3UploadId: string;
 	key: string;
+	/** HMAC over (key, size, contentType) — echo back at resume/complete. */
+	uploadSig: string;
 	parts: PartPresign[];
 	partSize: number;
 	expiresIn: number;
@@ -175,68 +181,37 @@ export const POST: RequestHandler = async ({ request, platform, getClientAddress
 		}
 	}
 
-	// ── Total S3 pool limit (100 GB) — skipped for admin ──
+	// ── Total S3 pool limit (bytes + active-share count) — skipped for admin.
+	// The count cap keeps the pool a small fraction of the 4-char token space
+	// (36^4 = 1.68M) so fixed-length token generation cannot be starved. Also
+	// re-checked at complete so skipping init doesn't bypass it. ──
 	if (!isAdmin) {
-		const maxTotalBytes = Number(env.MAX_TOTAL_BYTES);
-		// Active-share count cap. Keeps the pool a small fraction of the 4-char
-		// token space (36^4 = 1.68M) so fixed-length token generation cannot be
-		// starved by many tiny uploads that stay under the byte cap.
-		const maxTotalCount = Number(env.MAX_TOTAL_COUNT ?? 0);
-		if (maxTotalBytes > 0 || maxTotalCount > 0) {
-			try {
-				const totalRow = await env.DB.prepare(
-					`SELECT COALESCE(SUM(size_bytes), 0) AS total, COUNT(*) AS cnt FROM shares WHERE expires_at = 0 OR expires_at > ?1`
-				)
-					.bind(Date.now())
-					.first<{ total: number; cnt: number }>();
-				const currentTotal = totalRow?.total ?? 0;
-				const currentCount = totalRow?.cnt ?? 0;
-				if (maxTotalBytes > 0 && currentTotal + size > maxTotalBytes) {
-					await audit(env, {
-						ip,
-						action: 'init',
-						status: 429,
-						detail: {
-							reason: 'total-pool-exceeded',
-							currentTotal,
-							requested: size,
-							maxTotalBytes
-						}
-					});
-					return json(
-						{
-							error: `Total storage pool limit exceeded (max ${maxTotalBytes} bytes across all shares)`
-						},
-						{ status: 429 }
-					);
-				}
-				if (maxTotalCount > 0 && currentCount >= maxTotalCount) {
-					await audit(env, {
-						ip,
-						action: 'init',
-						status: 429,
-						detail: {
-							reason: 'total-count-exceeded',
-							currentCount,
-							maxTotalCount
-						}
-					});
-					return json(
-						{
-							error: `Total share count limit exceeded (max ${maxTotalCount} active shares)`
-						},
-						{ status: 429 }
-					);
-				}
-			} catch {
-				// non-fatal — DB may not be available
-			}
+		const pool = await checkPoolCapacity(env, size);
+		if (!pool.ok) {
+			await audit(env, {
+				ip,
+				action: 'init',
+				status: 429,
+				detail: { reason: pool.reason, requested: size, pool }
+			});
+			return json(
+				{
+					error:
+						pool.reason === 'total-pool-exceeded'
+							? `Total storage pool limit exceeded (max ${pool.maxTotalBytes} bytes across all shares)`
+							: `Total share count limit exceeded (max ${pool.maxTotalCount} active shares)`
+				},
+				{ status: 429 }
+			);
 		}
 	}
 
-	// ── Generate S3 key ──
+	// ── Generate S3 key + signed upload grant ──
 	const ephemeralToken = `tmp-${crypto.randomUUID().slice(0, 8)}`;
 	const key = buildS3Key({ shareToken: ephemeralToken, filename });
+	// Binds (key, size, contentType) so complete/resume can verify the client
+	// echoes back exactly what was approved here.
+	const uploadSig = await signUploadGrant(env, { key, size, contentType });
 
 	const client = createS3Client(env);
 	const expiresIn = Number(env.UPLOAD_URL_TTL);
@@ -276,6 +251,7 @@ export const POST: RequestHandler = async ({ request, platform, getClientAddress
 			uploadId: ourUploadId,
 			s3UploadId: uploadId,
 			key,
+			uploadSig,
 			parts,
 			partSize: parts[0]?.size ?? 0,
 			expiresIn
@@ -311,6 +287,7 @@ export const POST: RequestHandler = async ({ request, platform, getClientAddress
 			mode: 'single',
 			uploadId,
 			key,
+			uploadSig,
 			url,
 			headers: { 'Content-Type': contentType },
 			expiresIn

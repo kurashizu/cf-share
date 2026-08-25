@@ -18,8 +18,10 @@ import { isValidToken } from '@/lib/share/token';
  * closes the S3 connection directly without a Worker-held upstream stream.
  *
  *   ?info=1     → return share metadata as JSON (includes has_password).
- *   default     → stream the file bytes from S3 through the Worker (if no password).
- *   ?password=  → verify password and stream (if password-protected).
+ *   default     → 307 redirect to a presigned S3 URL (unprotected shares only).
+ *
+ * Password-protected shares must use POST — a `?password=` query parameter
+ * would leak the password into server logs, proxies, and browser history.
  *
  * POST /api/download/:token — password verification.
  *   Body: { password: string }. Returns 200 { verified, downloadUrl } on
@@ -107,35 +109,20 @@ export const GET: RequestHandler = async ({
 			);
 		}
 
-		// ── Password verification (query param) ──
-		const providedPassword = url.searchParams.get('password') ?? '';
+		// Protected shares are POST-only (see doc comment above).
 		if (hasPassword) {
-			if (
-				!providedPassword ||
-				!(await verifyPassword(
-					providedPassword,
-					share.password_salt!,
-					share.password_hash!
-				))
-			) {
-				await audit(env, {
-					ip,
-					action: 'download',
-					shareToken: token,
-					status: 401,
-					detail: {
-						reason:
-							hasPassword && !providedPassword
-								? 'password-required'
-								: 'wrong-password'
-					}
-				});
-				return downloadJson(
-					{ error: 'Password required', password_protected: true },
-					401,
-					{ 'Cache-Control': 'no-store' }
-				);
-			}
+			await audit(env, {
+				ip,
+				action: 'download',
+				shareToken: token,
+				status: 401,
+				detail: { reason: 'password-required' }
+			});
+			return downloadJson(
+				{ error: 'Password required', password_protected: true },
+				401,
+				{ 'Cache-Control': 'no-store' }
+			);
 		}
 
 		const requestedRange = request.headers.get('range');

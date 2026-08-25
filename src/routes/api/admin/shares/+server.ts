@@ -36,8 +36,11 @@ export const GET: RequestHandler = async ({ request, platform, url }) => {
 	const clauses: string[] = [];
 
 	if (query) {
-		clauses.push('(filename LIKE ?1 OR token LIKE ?1)');
-		bindings.push(`%${query}%`);
+		// Escape LIKE wildcards so a literal % or _ in the search text
+		// matches itself instead of acting as a pattern.
+		const escaped = query.replace(/[\\%_]/g, (c) => `\\${c}`);
+		clauses.push("(filename LIKE ?1 ESCAPE '\\' OR token LIKE ?1 ESCAPE '\\')");
+		bindings.push(`%${escaped}%`);
 	}
 	if (!showAll) {
 		const idx = bindings.length + 1;

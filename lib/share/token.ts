@@ -14,13 +14,24 @@
 
 const ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
-/** Generate a random token of exactly `length` characters from [0-9A-Z]. */
+/**
+ * Generate a random token of exactly `length` characters from [0-9A-Z].
+ *
+ * Uses rejection sampling: 256 % 36 !== 0, so a bare modulo would slightly
+ * favor characters 0-3. We only accept bytes below the largest multiple of
+ * 36 (252) and redraw the rest.
+ */
 export function generateToken(length = 4): string {
+	const limit = 256 - (256 % ALPHABET.length); // 252
 	const out = new Array<string>(length);
-	const bytes = new Uint8Array(length);
-	crypto.getRandomValues(bytes);
-	for (let i = 0; i < length; i++) {
-		out[i] = ALPHABET[bytes[i] % ALPHABET.length];
+	let filled = 0;
+	while (filled < length) {
+		const bytes = new Uint8Array(length - filled);
+		crypto.getRandomValues(bytes);
+		for (const b of bytes) {
+			if (b >= limit) continue;
+			out[filled++] = ALPHABET[b % ALPHABET.length];
+		}
 	}
 	return out.join("");
 }

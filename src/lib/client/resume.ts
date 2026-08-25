@@ -28,6 +28,10 @@ export interface PersistedUpload {
   s3UploadId: string;
   key: string;
   size: number;
+  /** Content-Type sent at init — part of the signed upload grant. */
+  contentType: string;
+  /** Server-issued grant signature from init; required to resume/complete. */
+  uploadSig: string;
   completedParts: PersistedPart[];
   /** Unix ms when this state was last updated. */
   savedAt: number;
@@ -68,11 +72,14 @@ export function loadPersistedUpload(fp: string): PersistedUpload | null {
     const raw = localStorage.getItem(storageKey(fp));
     if (!raw) return null;
     const parsed = JSON.parse(raw) as PersistedUpload;
-    // Light validation: catch obvious tampering.
+    // Light validation: catch obvious tampering. Entries from before the
+    // upload-grant scheme (no uploadSig) are unusable — treat as absent.
     if (
       typeof parsed.s3UploadId !== "string" ||
       typeof parsed.key !== "string" ||
       typeof parsed.size !== "number" ||
+      typeof parsed.contentType !== "string" ||
+      typeof parsed.uploadSig !== "string" ||
       !Array.isArray(parsed.completedParts)
     ) {
       return null;

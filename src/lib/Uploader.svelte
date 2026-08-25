@@ -58,6 +58,7 @@
 		mode: 'single';
 		uploadId: string;
 		key: string;
+		uploadSig: string;
 		url: string;
 		headers: Record<string, string>;
 		expiresIn: number;
@@ -74,6 +75,7 @@
 		uploadId: string;
 		s3UploadId: string;
 		key: string;
+		uploadSig: string;
 		parts: PartPresign[];
 		partSize: number;
 		expiresIn: number;
@@ -275,7 +277,13 @@
 
 		await completeUpload(
 			file,
-			{ uploadId: init.uploadId, key: init.key, etag, mode: 'single' },
+			{
+				uploadId: init.uploadId,
+				key: init.key,
+				uploadSig: init.uploadSig,
+				etag,
+				mode: 'single'
+			},
 			startedAt,
 			ttlValue,
 			passwordValue
@@ -388,6 +396,8 @@
 				s3UploadId: init.s3UploadId,
 				key: init.key,
 				size: file.size,
+				contentType: file.type || 'application/octet-stream',
+				uploadSig: init.uploadSig,
 				completedParts,
 				savedAt: Date.now()
 			});
@@ -400,6 +410,7 @@
 			{
 				uploadId: init.uploadId,
 				key: init.key,
+				uploadSig: init.uploadSig,
 				mode: 'multipart',
 				s3UploadId: init.s3UploadId,
 				parts: completedParts
@@ -505,7 +516,8 @@
 				persisted &&
 				persisted.size === file.size &&
 				persisted.s3UploadId &&
-				persisted.key
+				persisted.key &&
+				persisted.uploadSig
 			) {
 				// Try to resume the in-progress upload.
 				const resp = await fetch('/api/upload/resume', {
@@ -516,6 +528,8 @@
 						s3UploadId: persisted.s3UploadId,
 						key: persisted.key,
 						size: persisted.size,
+						contentType: persisted.contentType,
+						uploadSig: persisted.uploadSig,
 						uploadedPartNumbers: persisted.completedParts.map((p) => p.partNumber)
 					})
 				});
