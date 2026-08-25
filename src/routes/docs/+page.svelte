@@ -80,8 +80,8 @@
 						<td class="py-2 pr-4">integer</td>
 						<td class="py-2">
 							Anon: 300–604800s. Admin: same range, or{" "}
-							<code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">0</code> for “no expiry” (share
-							lives ~100 years). Default 86400 (24h).
+							<code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">0</code> for “no expiry” (stored
+							as <code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">expires_at = 0</code>, truly permanent). Default 86400 (24h).
 						</td>
 					</tr>
 					<tr class="border-b border-neutral-200 dark:border-neutral-800">

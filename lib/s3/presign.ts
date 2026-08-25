@@ -6,6 +6,8 @@ import type { S3Client } from "@aws-sdk/client-s3";
 const MAX_PRESIGNED_GET_SECONDS = 7 * 24 * 60 * 60;
 
 export function presignedGetTtl(expiresAt: number, now = Date.now()): number {
+  // expires_at = 0 means the share never expires; hand out the SigV4 max.
+  if (expiresAt === 0) return MAX_PRESIGNED_GET_SECONDS;
   const remaining = Math.ceil((expiresAt - now) / 1000);
   return Math.max(1, Math.min(remaining, MAX_PRESIGNED_GET_SECONDS));
 }

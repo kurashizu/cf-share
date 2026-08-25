@@ -41,7 +41,7 @@ export const GET: RequestHandler = async ({ request, platform, url }) => {
 	}
 	if (!showAll) {
 		const idx = bindings.length + 1;
-		clauses.push(`expires_at > ?${idx}`);
+		clauses.push(`(expires_at = 0 OR expires_at > ?${idx})`);
 		bindings.push(now);
 	}
 	const whereSQL = clauses.length > 0 ? 'WHERE ' + clauses.join(' AND ') : '';
@@ -72,10 +72,10 @@ export const GET: RequestHandler = async ({ request, platform, url }) => {
 	const stats = await env.DB.prepare(
 		`SELECT
 		   COUNT(*) AS total,
-		   SUM(CASE WHEN expires_at > ?1 THEN 1 ELSE 0 END) AS active,
-		   SUM(CASE WHEN expires_at <= ?1 THEN 1 ELSE 0 END) AS expired,
+		   SUM(CASE WHEN expires_at = 0 OR expires_at > ?1 THEN 1 ELSE 0 END) AS active,
+		   SUM(CASE WHEN expires_at != 0 AND expires_at <= ?1 THEN 1 ELSE 0 END) AS expired,
 		   SUM(size_bytes) AS total_bytes,
-		   SUM(CASE WHEN expires_at > ?1 THEN size_bytes ELSE 0 END) AS active_bytes
+		   SUM(CASE WHEN expires_at = 0 OR expires_at > ?1 THEN size_bytes ELSE 0 END) AS active_bytes
 		 FROM shares`
 	)
 		.bind(now)

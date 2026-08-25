@@ -44,13 +44,23 @@
 
 	onMount(() => {
 		if (!canvasRef) return;
+		// Render at 2x the displayed size so the QR stays crisp on retina.
 		QRCode.toCanvas(canvasRef, fullUrl, {
-			width: 192,
+			width: 328,
 			margin: 1,
 			color: { dark: '#000000', light: '#ffffff' }
-		}).catch(() => {
-			// ignore
-		});
+		})
+			.then(() => {
+				// qrcode sets inline style.width/height to the render size;
+				// clear them so the stylesheet controls the displayed size.
+				if (canvasRef) {
+					canvasRef.style.width = '';
+					canvasRef.style.height = '';
+				}
+			})
+			.catch(() => {
+				// ignore
+			});
 	});
 
 	async function onCopy(text: string, setter: (v: boolean) => void, btn: HTMLButtonElement) {
@@ -79,6 +89,7 @@
 	}
 
 	const remainingMs = $derived(Math.max(0, expiresAt - now));
+	const remainingLabel = $derived(expiresAt === 0 ? 'never' : formatRemaining(remainingMs));
 	const elapsed = $derived((now - startedAt) / 1000);
 
 	function formatRemaining(ms: number): string {
@@ -91,73 +102,78 @@
 		if (h > 0) return `in ${h}h ${m}m`;
 		return `in ${m}m`;
 	}
+
+	function formatBytes(n: number): string {
+		if (n < 1024) return `${n} B`;
+		if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+		if (n < 1024 * 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`;
+		return `${(n / 1024 / 1024 / 1024).toFixed(2)} GB`;
+	}
 </script>
 
 <div class="panel" style="margin-top:14px;">
 	<div class="panel-head">
 		<span class="tag">›</span> share_link
-		<span class="meta">{formatRemaining(remainingMs)}</span>
+		<span class="meta">{remainingLabel}</span>
 	</div>
 	<div class="panel-body">
-		<div class="result-grid">
+		<div class="result-hero">
+			<button
+				class="share-code"
+				data-keep-label="1"
+				title="click to copy the code"
+				onclick={(e) => onCopy(shareToken, (v) => (copiedCode = v), e.currentTarget)}
+			>
+				<span class="share-code-label">share code {copiedCode ? '· copied ✓' : '· click to copy'}</span>
+				<span class="share-code-value">{shareToken}</span>
+				<span class="share-code-hint">enter this code on the home page to receive</span>
+			</button>
+
 			<div class="qr">
-				<canvas bind:this={canvasRef} width={192} height={192}></canvas>
-			</div>
-
-			<div>
-				<button
-					class="share-code"
-					data-keep-label="1"
-					title="click to copy the code"
-					onclick={(e) => onCopy(shareToken, (v) => (copiedCode = v), e.currentTarget)}
-				>
-					<span class="share-code-label">share code {copiedCode ? '· copied ✓' : '· click to copy'}</span>
-					<span class="share-code-value">{shareToken}</span>
-					<span class="share-code-hint">enter this code on the home page to receive</span>
-				</button>
-
-				<div class="share-link">
-					<span class="small">share url</span>
-					{directDownloadUrl.startsWith(baseUrl + '/api/download/') ? baseUrl + '/d/' + shareToken : fullUrl}
-				</div>
-
-				<div class="btn-row">
-					<button
-						class="btn primary"
-						onclick={(e) => onCopy(fullUrl, (v) => (copied = v), e.currentTarget)}
-					>
-						{copied ? 'Copied ✓' : 'Copy link'}
-					</button>
-					<button
-						class="btn outline"
-						onclick={(e) => onCopy(directDownloadUrl, (v) => (copiedDirect = v), e.currentTarget)}
-					>
-						{copiedDirect ? 'Copied ✓' : 'Copy direct link'}
-					</button>
-					{#if proxiedDownloadUrl}
-						<button class="btn outline" onclick={(e) => onCopy(proxiedDownloadUrl!, (v) => (copiedProxied = v), e.currentTarget)}>
-							{copiedProxied ? 'Copied ✓' : 'COPY PROXIED LINK'}
-						</button>
-					{/if}
-					<button class="btn outline" onclick={() => window.location.reload()}>New upload</button>
-				</div>
-
-				{#if password}
-					<p class="password-form warn" style="margin-top:0;">
-						direct link includes password via ?password=
-					</p>
-				{/if}
-
-				<dl class="meta-list">
-					<dt>filename</dt><dd class="truncate" title={filename}>{filename}</dd>
-					<dt>size</dt><dd>{(size / 1024).toFixed(1)} KB</dd>
-					<dt>elapsed</dt><dd>{elapsed.toFixed(1)}s</dd>
-					<dt>expires</dt><dd>{formatRemaining(remainingMs)}</dd>
-					<dt>password</dt><dd>{password || '—'}</dd>
-					<dt>delivery</dt><dd class="success">direct S3 stream</dd>
-				</dl>
+				<canvas bind:this={canvasRef} width={328} height={328}></canvas>
 			</div>
 		</div>
+
+		<div class="share-link">
+			<span class="small">share url</span>
+			{directDownloadUrl.startsWith(baseUrl + '/api/download/') ? baseUrl + '/d/' + shareToken : fullUrl}
+		</div>
+
+		<div class="btn-row">
+			<button
+				class="btn primary"
+				onclick={(e) => onCopy(fullUrl, (v) => (copied = v), e.currentTarget)}
+			>
+				{copied ? 'Copied ✓' : 'Copy link'}
+			</button>
+			<button
+				class="btn outline"
+				onclick={(e) => onCopy(directDownloadUrl, (v) => (copiedDirect = v), e.currentTarget)}
+			>
+				{copiedDirect ? 'Copied ✓' : 'Copy direct link'}
+			</button>
+			{#if proxiedDownloadUrl}
+				<button class="btn outline" onclick={(e) => onCopy(proxiedDownloadUrl!, (v) => (copiedProxied = v), e.currentTarget)}>
+					{copiedProxied ? 'Copied ✓' : 'Copy proxied link'}
+				</button>
+			{/if}
+			<button class="btn outline" onclick={() => window.location.reload()}>New upload</button>
+		</div>
+
+		{#if password}
+			<p class="password-form warn" style="margin-top:0;">
+				direct link includes password via ?password=
+			</p>
+		{/if}
+
+		<dl class="meta-list">
+			<dt>filename</dt><dd class="truncate" title={filename}>{filename}</dd>
+			<dt>size</dt><dd>{formatBytes(size)}</dd>
+			<dt>elapsed</dt><dd>{elapsed.toFixed(1)}s</dd>
+			<dt>expires</dt><dd>{remainingLabel}</dd>
+			<dt>password</dt><dd>{password || '—'}</dd>
+			<dt>delivery</dt><dd class="success">direct S3 stream</dd>
+		</dl>
 
 		<p class="dropzone-meta" style="margin-top:14px;">
 			Anyone with this link can download the file until it expires. After expiry, the

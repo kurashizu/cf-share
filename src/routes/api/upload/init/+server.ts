@@ -116,9 +116,9 @@ export const POST: RequestHandler = async ({ request, platform, getClientAddress
 		if (!Number.isFinite(requested)) {
 			return json({ error: 'ttl must be a number' }, { status: 400 });
 		}
-		// Admin can send ttl=0 for "no expiry" (sets expires_at 1 year out).
+		// Admin can send ttl=0 for "no expiry".
 		if (requested === 0 && isAdmin) {
-			ttl = 0; // sentinel: complete route will compute a far-future expiresAt
+			ttl = 0; // sentinel: stored as expires_at = 0 (never expires)
 		} else if (requested < minTtl || requested > maxTtl) {
 			return json(
 				{ error: `ttl must be in [${minTtl}, ${maxTtl}] seconds` },
@@ -185,7 +185,7 @@ export const POST: RequestHandler = async ({ request, platform, getClientAddress
 		if (maxTotalBytes > 0 || maxTotalCount > 0) {
 			try {
 				const totalRow = await env.DB.prepare(
-					`SELECT COALESCE(SUM(size_bytes), 0) AS total, COUNT(*) AS cnt FROM shares WHERE expires_at > ?1`
+					`SELECT COALESCE(SUM(size_bytes), 0) AS total, COUNT(*) AS cnt FROM shares WHERE expires_at = 0 OR expires_at > ?1`
 				)
 					.bind(Date.now())
 					.first<{ total: number; cnt: number }>();

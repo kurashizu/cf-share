@@ -85,7 +85,7 @@ async function activeShareHasKey(
   s3Key: string,
 ): Promise<boolean> {
   const row = await env.DB.prepare(
-    `SELECT 1 AS x FROM shares WHERE s3_key = ?1 AND expires_at > ?2 LIMIT 1`,
+    `SELECT 1 AS x FROM shares WHERE s3_key = ?1 AND (expires_at = 0 OR expires_at > ?2) LIMIT 1`,
   )
     .bind(s3Key, Date.now())
     .first<{ x: number }>();
@@ -122,7 +122,7 @@ export async function findExpiredShares(
   const r = await env.DB.prepare(
     `SELECT token, bucket, s3_key, size_bytes
      FROM shares
-     WHERE expires_at < ?1
+     WHERE expires_at != 0 AND expires_at < ?1
      ORDER BY expires_at ASC
      LIMIT ?2`,
   )

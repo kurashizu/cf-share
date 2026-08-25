@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS shares (
     filename         TEXT NOT NULL,
     size_bytes       INTEGER NOT NULL,
     content_type     TEXT NOT NULL,
-    expires_at       INTEGER NOT NULL,
+    expires_at       INTEGER NOT NULL,  -- unix ms; 0 = never expires (admin ttl=0)
     created_at       INTEGER NOT NULL,
     created_ip       TEXT,
     user_agent       TEXT,

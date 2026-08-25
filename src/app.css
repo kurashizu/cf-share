@@ -522,21 +522,29 @@ body::after {
 .phase-meta.done svg { width: 14px; height: 14px; }
 
 /* ════════════════════════════════════════════════════════════════════════
-   RESULT PANEL — bigger QR, wider grid
+   RESULT PANEL — code + QR hero row, then url / buttons / meta full-width
    ════════════════════════════════════════════════════════════════════════ */
-.result-grid {
-	display: grid;
-	grid-template-columns: 220px 1fr;
-	gap: 28px;
-	align-items: start;
+.result-hero {
+	display: flex;
+	gap: 14px;
+	align-items: stretch;
+	margin-bottom: 14px;
+}
+.result-hero .share-code {
+	flex: 1;
+	min-width: 0;
+	margin-bottom: 0;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	gap: 3px;
 }
 .qr {
 	background: rgba(8, 12, 10, 0.5);
 	border: 1px solid var(--border);
 	border-radius: var(--radius-sm);
 	padding: 8px;
-	width: 204px;
-	height: 204px;
+	flex-shrink: 0;
 	display: grid;
 	place-items: center;
 	color: var(--text-faint);
@@ -546,7 +554,7 @@ body::after {
 	overflow: hidden;
 	transition: transform var(--t-base) var(--ease-spring), border-color var(--t-base) var(--ease);
 }
-.qr canvas { width: 188px; height: 188px; }
+.qr canvas { width: 164px; height: 164px; }
 .qr:hover { transform: scale(1.03); border-color: var(--accent); }
 .share-link {
 	font-family: var(--mono);
@@ -1226,8 +1234,9 @@ pre code {
 	.phase-label { font-size: 11px; }
 	.phase-meta { font-size: 11px; }
 
-	.result-grid { grid-template-columns: 1fr; gap: 20px; }
+	.result-hero { flex-direction: column; }
 	.qr { margin: 0 auto; }
+	.qr canvas { width: 148px; height: 148px; }
 
 	.meta-list { grid-template-columns: 1fr; gap: 4px 0; }
 

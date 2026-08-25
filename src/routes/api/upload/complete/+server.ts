@@ -315,10 +315,8 @@ async function handleComplete(
 		}
 
 		// ── Mint token ──
-		const expiresAt =
-			ttl === 0
-				? Date.now() + 100 * 365 * 86400 * 1000
-				: Date.now() + ttl * 1000;
+		// expires_at = 0 is the "never expires" sentinel (admin ttl=0).
+		const expiresAt = ttl === 0 ? 0 : Date.now() + ttl * 1000;
 		let token: string;
 		try {
 			const r = await createShare(env, {
@@ -481,8 +479,8 @@ async function handleComplete(
 	}
 
 	// ── Mint token ──
-	const expiresAt =
-		ttl === 0 ? Date.now() + 100 * 365 * 86400 * 1000 : Date.now() + ttl * 1000;
+	// expires_at = 0 is the "never expires" sentinel (admin ttl=0).
+	const expiresAt = ttl === 0 ? 0 : Date.now() + ttl * 1000;
 	let token: string;
 	try {
 		const r = await createShare(env, {

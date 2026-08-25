@@ -88,7 +88,7 @@
 	}
 
 	function isExpired(ts: number): boolean {
-		return ts < Date.now();
+		return ts !== 0 && ts < Date.now();
 	}
 
 	function pages(current: number, total: number): (number | null)[] {
@@ -378,7 +378,7 @@
 										{share.content_type || '—'}
 									</td>
 									<td class="hide-md">{fmtDate(share.created_at)}</td>
-									<td class="hide-md {expired ? 'status-4xx' : 'status-2xx'}">{fmtDate(share.expires_at)}</td>
+									<td class="hide-md {expired ? 'status-4xx' : 'status-2xx'}">{share.expires_at === 0 ? 'never' : fmtDate(share.expires_at)}</td>
 									<td class="hide-sm" style="text-align:right;">{share.download_count}</td>
 									<td class="hide-lg" style="color:var(--text-dim);">{share.created_ip || '—'}</td>
 									<td style="text-align:center;">

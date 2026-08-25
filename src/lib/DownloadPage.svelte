@@ -185,6 +185,7 @@
 	}
 
 	function formatRelativeTime(ts: number): string {
+		if (ts === 0) return 'never';
 		const diff = ts - Date.now();
 		if (diff < 0) return 'expired';
 		const minutes = Math.floor(diff / 60_000);

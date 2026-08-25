@@ -102,7 +102,8 @@ export async function getShare(
     .bind(token)
     .first<ShareRecord>();
   if (!row) return null;
-  if (row.expires_at < Date.now()) return null;
+  // expires_at = 0 is the "never expires" sentinel (admin ttl=0 uploads).
+  if (row.expires_at !== 0 && row.expires_at < Date.now()) return null;
   return row;
 }
 

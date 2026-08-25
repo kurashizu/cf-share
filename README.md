@@ -57,7 +57,7 @@ any extra client wiring. It provides three tabs:
 
 - **Shares** — browse active/expired shares, search by filename or token, delete shares
 - **Audit Log** — view all init/complete/download/delete events, filter by action type or IP
-- **Upload** — upload a new file (admin path: 100 GB cap, no per-IP / per-pool quotas, optional `ttl=0` for "no expiry")
+- **Upload** — upload a new file (admin path: 100 GB cap, no per-IP / per-pool quotas, optional `ttl=0` for "no expiry" (`expires_at = 0`, never cleaned up))
 
 ## Development
 
