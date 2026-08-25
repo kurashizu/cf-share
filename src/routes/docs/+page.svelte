@@ -1,6 +1,6 @@
 <svelte:head>
 	<title>API — Share</title>
-	<meta name="description" content="KRSZ Share file sharing API docs." />
+	<meta name="description" content="KRSZ Share file & clipboard sharing API docs." />
 </svelte:head>
 
 <script lang="ts">
@@ -14,8 +14,22 @@
 		</h1>
 		<p class="text-neutral-500 dark:text-neutral-400 mb-8">
 			<a href={APP_URL} class="text-blue-600 dark:text-blue-400 hover:underline">{APP_HOST}</a>
-			{" · "}Upload a file via presigned S3 URL, get a short-lived 4-char share link. Admin
-			uploads bypass all quotas.
+			{" · "}Upload a file (or clipboard text) via presigned S3 URL, get a short-lived
+			4-char share code and link. Admin uploads bypass all quotas.
+		</p>
+
+		<!-- ── Share codes ────────────────────────────────────────────────── -->
+		<h2 class="text-2xl font-bold mt-10 mb-4 text-neutral-900 dark:text-neutral-50" id="codes">
+			Share codes
+		</h2>
+		<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-3">
+			Every share is addressed by a short token: 4 chars from{" "}
+			<code>[0-9A-Z]</code>, extended to 5–6 chars only on collision. The token
+			is the whole address — <code>{APP_HOST}/d/ABCD</code> — so it can be read
+			aloud, typed on another device, or scanned from the QR code shown after
+			upload. The home page has a code input that looks the share up and jumps
+			straight to it; lookups are rate-limited (30/min per IP) to keep the code
+			space unenumerable.
 		</p>
 
 		<!-- ── Anonymous Upload Flow ──────────────────────────────────────── -->
@@ -156,7 +170,9 @@
 		</h3>
 		<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-2">
 			Renders a human-friendly download page with filename, size, and expiry countdown.
-			Password-protected shares show a prompt.
+			Password-protected shares show a prompt. Text shares (<code>text/*</code>, ≤ 2 MiB)
+			are rendered inline with a one-click <em>Copy to clipboard</em> button instead of a
+			download card.
 		</p>
 
 		<h3 class="text-xl font-semibold mt-6 mb-3 text-neutral-800 dark:text-neutral-100">
@@ -182,6 +198,83 @@
 		<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-2">
 			Body: <code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">{"{password: string}"}</code>. Returns{" "}
 			<code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">{"{verified: true, downloadUrl}"}</code>.
+		</p>
+
+		<!-- ── Text / clipboard shares ────────────────────────────────────── -->
+		<hr class="my-8 border-neutral-200 dark:border-neutral-800" />
+		<h2 class="text-2xl font-bold mt-10 mb-4 text-neutral-900 dark:text-neutral-50" id="text">
+			Text / clipboard shares
+		</h2>
+		<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-3">
+			There is no separate paste API — a text share is a normal upload whose{" "}
+			<code>contentType</code> is <code>text/*</code> and whose size is at or below the
+			proxy threshold (<strong>2 MiB</strong>). That convention is what unlocks the
+			clipboard-friendly behavior on both ends:
+		</p>
+		<div class="overflow-x-auto">
+			<table class="w-full text-sm border-collapse">
+				<thead>
+					<tr class="border-b border-neutral-300 dark:border-neutral-700 text-left">
+						<th class="py-2 pr-4 font-medium">Where</th>
+						<th class="py-2 font-medium">Behavior</th>
+					</tr>
+				</thead>
+				<tbody>
+					<tr class="border-b border-neutral-200 dark:border-neutral-800">
+						<td class="py-2 pr-4">Home page</td>
+						<td class="py-2">
+							<code>Ctrl/Cmd+V</code> anywhere shares your clipboard — text opens the
+							text composer, files/screenshots start an upload. The <em>text</em> tab
+							submits with <code>Ctrl+Enter</code>.
+						</td>
+					</tr>
+					<tr class="border-b border-neutral-200 dark:border-neutral-800">
+						<td class="py-2 pr-4"><code>GET /d/:token</code></td>
+						<td class="py-2">
+							Eligible text shares render inline with a one-click{" "}
+							<em>Copy to clipboard</em> button (password-protected ones after
+							verification).
+						</td>
+					</tr>
+					<tr>
+						<td class="py-2 pr-4"><code>GET /p/:token</code></td>
+						<td class="py-2">
+							Raw text over HTTP — pipe it straight into scripts or your clipboard.
+							Unprotected shares only.
+						</td>
+					</tr>
+				</tbody>
+			</table>
+		</div>
+		<h3 class="text-xl font-semibold mt-6 mb-3 text-neutral-800 dark:text-neutral-100">
+			cURL recipes
+		</h3>
+		<pre class="bg-neutral-900 dark:bg-black text-neutral-100 p-4 rounded-lg overflow-x-auto text-sm leading-relaxed"><code>{`# Share your clipboard (macOS; Linux: xclip -o / wl-paste)
+pbpaste > /tmp/paste.txt
+SIZE=$(wc -c < /tmp/paste.txt | tr -d ' ')
+INIT=$(curl -fsS -X POST "${APP_URL}/api/upload/init" \\
+  -H "Content-Type: application/json" \\
+  -d "{\\"filename\\":\\"paste.txt\\",\\"size\\":$SIZE,\\"contentType\\":\\"text/plain; charset=utf-8\\",\\"ttl\\":3600}")
+URL=$(echo "$INIT" | sed -n 's/.*"url":"\\([^"]*\\)".*/\\1/p')
+KEY=$(echo "$INIT" | sed -n 's/.*"key":"\\([^"]*\\)".*/\\1/p')
+UID=$(echo "$INIT" | sed -n 's/.*"uploadId":"\\([^"]*\\)".*/\\1/p')
+ETAG=$(curl -fsS -X PUT "$URL" -H "Content-Type: text/plain; charset=utf-8" \\
+  --data-binary "@/tmp/paste.txt" -D - -o /dev/null | tr -d '\\r' | awk 'tolower($1)=="etag:"{gsub(/"/,"",$2); print $2}')
+curl -fsS -X POST "${APP_URL}/api/upload/complete" \\
+  -H "Content-Type: application/json" \\
+  -d "{\\"uploadId\\":\\"$UID\\",\\"key\\":\\"$KEY\\",\\"filename\\":\\"paste.txt\\",\\"size\\":$SIZE,\\"contentType\\":\\"text/plain; charset=utf-8\\",\\"etag\\":\\"$ETAG\\",\\"ttl\\":3600}"
+# → {"shareToken":"AB3F", ...}
+
+# Receive a text share straight into your clipboard
+curl -fsS "${APP_URL}/p/AB3F" | pbcopy    # Linux: | xclip -selection clipboard / | wl-copy
+
+# Or just print it
+curl -fsS "${APP_URL}/p/AB3F"`}</code></pre>
+		<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-2">
+			Text pastes often carry secrets (tokens, keys, configs) and share codes are
+			deliberately short — add a <code>password</code> and a short <code>ttl</code>{" "}
+			when the content is sensitive. Password-protected shares are excluded from{" "}
+			<code>/p/:token</code>.
 		</p>
 
 		<!-- ── Admin ──────────────────────────────────────────────────────── -->
@@ -320,8 +413,8 @@ curl -fsS -X POST "${APP_URL}/api/upload/complete" \\
   -H "Content-Type: application/json" \\
   -d "{\\"uploadId\\":\\"$UID\\",\\"key\\":\\"$KEY\\",\\"filename\\":\\"photo.jpg\\",\\"size\\":1048576,\\"contentType\\":\\"image/jpeg\\",\\"etag\\":\\"$ETAG\\",\\"ttl\\":86400}"
 
-# 4. Download
-curl -fsSL "${APP_URL}/d/ABCD" -o downloaded-file`}</code></pre>
+# 4. Download (follows the 307 redirect to S3; add ?password=X for protected shares)
+curl -fsSL "${APP_URL}/api/download/ABCD" -o downloaded-file`}</code></pre>
 
 		<div class="mt-12 text-center text-sm text-neutral-500 dark:text-neutral-500">
 			<a href="/" class="text-blue-600 dark:text-blue-400 hover:underline">← Back to upload</a>
