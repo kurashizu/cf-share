@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { DEFAULT_PROXY_MAX_FILE_SIZE } from '@/lib/config/proxy';
 
 	interface ShareInfo {
 		filename: string;
@@ -31,6 +32,17 @@
 	let downloadUrl = $state<string | null>(null);
 	let errorMsg = $state('');
 	let verifying = $state(false);
+	let textContent = $state<string | null>(null);
+	let textLoading = $state(false);
+	let copiedText = $state(false);
+
+	/** Text shares small enough for the /p proxy get an inline view + copy. */
+	function isTextPreviewable(i: ShareInfo): boolean {
+		return (
+			i.content_type.toLowerCase().startsWith('text/') &&
+			i.size_bytes <= DEFAULT_PROXY_MAX_FILE_SIZE
+		);
+	}
 
 	onMount(() => {
 		let cancelled = false;
@@ -49,6 +61,22 @@
 				const data = (await r.json()) as ShareInfo;
 				info = data;
 				status = data.has_password ? 'password-required' : 'ok';
+
+				// Unprotected small text share: pull the content through the
+				// Worker proxy and show it inline instead of a download card.
+				if (!data.has_password && isTextPreviewable(data)) {
+					textLoading = true;
+					try {
+						const pr = await fetch(`/p/${token}`, { cache: 'no-store' });
+						if (!cancelled && pr.ok) {
+							textContent = await pr.text();
+						}
+					} catch {
+						// fall back to the normal download card
+					} finally {
+						if (!cancelled) textLoading = false;
+					}
+				}
 			} catch {
 				if (!cancelled) status = 'missing';
 			}
@@ -57,6 +85,22 @@
 			cancelled = true;
 		};
 	});
+
+	async function copyText() {
+		if (textContent === null) return;
+		try {
+			await navigator.clipboard.writeText(textContent);
+		} catch {
+			const ta = document.createElement('textarea');
+			ta.value = textContent;
+			document.body.appendChild(ta);
+			ta.select();
+			document.execCommand('copy');
+			document.body.removeChild(ta);
+		}
+		copiedText = true;
+		setTimeout(() => (copiedText = false), 1500);
+	}
 
 	function download() {
 		window.location.href = `/api/download/${token}`;
@@ -97,6 +141,21 @@
 			if (data.verified && data.downloadUrl) {
 				downloadUrl = data.downloadUrl;
 				verifying = false;
+				// Protected text share: try to fetch the presigned URL and show
+				// it inline (needs S3 CORS GET); otherwise fall back to opening
+				// the download.
+				if (info && isTextPreviewable(info)) {
+					try {
+						const pr = await fetch(data.downloadUrl);
+						if (pr.ok) {
+							textContent = await pr.text();
+							status = 'ok';
+							return;
+						}
+					} catch {
+						// CORS or network — fall through to the download path
+					}
+				}
 				const win = window.open(data.downloadUrl, '_blank');
 				if (!win) {
 					// Popup blocker — fall back to same-window navigation.
@@ -138,15 +197,44 @@
 </script>
 
 <main class="wrap">
-	<div class="download-card">
+	<div class="download-card {textContent !== null ? 'wide' : ''}">
 
-		{#if status === 'loading'}
+		{#if status === 'loading' || textLoading}
 			<div class="panel">
 				<div class="panel-head">
 					<span class="tag">›</span> loading
 				</div>
 				<div class="panel-body" style="text-align:center; color:var(--text-dim); font-family:var(--mono); font-size:13px;">
 					loading…
+				</div>
+			</div>
+		{/if}
+
+		{#if textContent !== null && info}
+			<div class="panel">
+				<div class="panel-head">
+					<span class="tag">›</span> text_share
+					<span class="meta">{formatBytes(info.size_bytes)} · expires {formatRelativeTime(info.expires_at)}</span>
+				</div>
+				<div class="panel-body">
+					<pre class="paste-view">{textContent}</pre>
+					<div class="btn-row" style="margin-bottom:0; margin-top:14px;">
+						<button class="btn primary {copiedText ? 'copied' : ''}" onclick={copyText}>
+							{copiedText ? 'Copied ✓' : 'Copy to clipboard'}
+						</button>
+						<button
+							class="btn outline"
+							onclick={() => {
+								if (downloadUrl) {
+									window.open(downloadUrl, '_blank');
+								} else {
+									download();
+								}
+							}}
+						>
+							Download as file
+						</button>
+					</div>
 				</div>
 			</div>
 		{/if}
@@ -212,7 +300,7 @@
 			</div>
 		{/if}
 
-		{#if status === 'ok' && info && !info.has_password}
+		{#if status === 'ok' && info && !info.has_password && textContent === null && !textLoading}
 			<div class="panel">
 				<div class="panel-head">
 					<span class="tag">›</span> file_info

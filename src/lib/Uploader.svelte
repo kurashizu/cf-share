@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import FileItem, { type UploadState } from './FileItem.svelte';
 	import ResultPanel from './ResultPanel.svelte';
+	import { DEFAULT_PROXY_MAX_FILE_SIZE } from '@/lib/config/proxy';
 	import {
 		fileFingerprint,
 		loadPersistedUpload,
@@ -84,12 +85,14 @@
 		extraHeaders = {},
 		maxSize = DEFAULT_MAX_SIZE,
 		ttlPresets = ANON_TTL_PRESETS,
-		omitCredentials = false
+		omitCredentials = false,
+		globalPaste = false
 	}: {
 		extraHeaders?: Record<string, string>;
 		maxSize?: number;
 		ttlPresets?: { label: string; value: number }[];
 		omitCredentials?: boolean;
+		globalPaste?: boolean;
 	} = $props();
 
 	const fetchOpts = $derived<RequestInit>(omitCredentials ? { credentials: 'omit' } : {});
@@ -100,12 +103,53 @@
 	let password = $state('');
 	let cancelledRef = $state(false);
 	let isDragActive = $state(false);
+	let mode = $state<'file' | 'text'>('file');
+	let text = $state('');
+	let textareaRef = $state<HTMLTextAreaElement | null>(null);
+
+	const busy = $derived(active !== null && active.state.kind !== 'error');
+	// Text pastes are capped at the proxy threshold so the receiver always
+	// gets the inline view + one-click copy instead of a file download.
+	const TEXT_MAX_BYTES = DEFAULT_PROXY_MAX_FILE_SIZE;
+	const textBytes = $derived(new Blob([text]).size);
 
 	// GC stale persisted uploads on mount (e.g. abandoned uploads from
 	// previous sessions). Anything older than 6h is definitely dead since
 	// the multipart TTL is 1h.
 	onMount(() => {
 		gcPersistedUploads(6 * 60 * 60 * 1000);
+	});
+
+	// Global paste: Ctrl/Cmd+V anywhere on the page shares the clipboard —
+	// files/screenshots go straight to upload, text opens the text composer.
+	onMount(() => {
+		if (!globalPaste) return;
+		const onPaste = (e: ClipboardEvent) => {
+			const t = e.target as HTMLElement | null;
+			if (
+				t &&
+				(t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)
+			) {
+				return; // let normal inputs handle their own paste
+			}
+			if (busy) return;
+			const files = Array.from(e.clipboardData?.files ?? []);
+			if (files.length > 0) {
+				e.preventDefault();
+				mode = 'file';
+				startUpload(files[0]);
+				return;
+			}
+			const pasted = e.clipboardData?.getData('text/plain') ?? '';
+			if (pasted) {
+				e.preventDefault();
+				mode = 'text';
+				text = text ? text + pasted : pasted;
+				queueMicrotask(() => textareaRef?.focus());
+			}
+		};
+		window.addEventListener('paste', onPaste);
+		return () => window.removeEventListener('paste', onPaste);
 	});
 
 	/** Update active state with progress and speed tracking. */
@@ -517,6 +561,21 @@
 		startUpload(files[0]);
 	}
 
+	function shareText() {
+		const t = text;
+		if (!t.trim() || busy || textBytes > TEXT_MAX_BYTES) return;
+		const d = new Date();
+		const pad = (n: number) => String(n).padStart(2, '0');
+		const name = `paste-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}.txt`;
+		startUpload(new File([t], name, { type: 'text/plain; charset=utf-8' }));
+	}
+
+	function formatBytes(n: number): string {
+		if (n < 1024) return `${n} B`;
+		if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+		return `${(n / 1024 / 1024).toFixed(2)} MB`;
+	}
+
 	function cancel() {
 		cancelledRef = true;
 		if (active?.xhr) active.xhr.abort();
@@ -530,12 +589,40 @@
 
 <div class="panel">
 	<div class="panel-head">
-		<span class="tag">›</span> upload_config
-		<span class="meta">anon · max {maxSize >= 1024 * 1024 * 1024
-			? `${Math.round(maxSize / (1024 * 1024 * 1024))} GB`
-			: `${Math.round(maxSize / (1024 * 1024))} MB`}</span>
+		<span class="tag">›</span> send
+		<span class="meta">
+			{#if mode === 'file'}
+				max {maxSize >= 1024 * 1024 * 1024
+					? `${Math.round(maxSize / (1024 * 1024 * 1024))} GB`
+					: `${Math.round(maxSize / (1024 * 1024))} MB`}
+			{:else}
+				text · inline up to {Math.round(TEXT_MAX_BYTES / (1024 * 1024))} MB
+			{/if}
+		</span>
 	</div>
 	<div class="panel-body">
+		<div class="mode-tabs" role="tablist">
+			<button
+				type="button"
+				role="tab"
+				aria-selected={mode === 'file'}
+				class="mode-tab {mode === 'file' ? 'active' : ''}"
+				disabled={busy}
+				onclick={() => (mode = 'file')}
+			>file</button>
+			<button
+				type="button"
+				role="tab"
+				aria-selected={mode === 'text'}
+				class="mode-tab {mode === 'text' ? 'active' : ''}"
+				disabled={busy}
+				onclick={() => {
+					mode = 'text';
+					queueMicrotask(() => textareaRef?.focus());
+				}}
+			>text / clipboard</button>
+		</div>
+
 		<div class="controls">
 			<label for="ttl-select">expires in</label>
 			<select
@@ -560,6 +647,36 @@
 			/>
 		</div>
 
+		{#if mode === 'text'}
+		<div class="text-compose">
+			<textarea
+				bind:this={textareaRef}
+				bind:value={text}
+				class="text-area"
+				placeholder="paste or type text to share… (Ctrl+V anywhere on the page also lands here)"
+				disabled={busy}
+				onkeydown={(e) => {
+					if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+						e.preventDefault();
+						shareText();
+					}
+				}}
+			></textarea>
+			<div class="text-compose-foot">
+				<span class="text-count {textBytes > TEXT_MAX_BYTES ? 'over' : ''}">
+					{formatBytes(textBytes)} / {Math.round(TEXT_MAX_BYTES / (1024 * 1024))} MB
+					{#if textBytes > TEXT_MAX_BYTES}· too large for a text share — share as a file instead{/if}
+				</span>
+				<button
+					class="btn primary"
+					disabled={busy || !text.trim() || textBytes > TEXT_MAX_BYTES}
+					onclick={shareText}
+				>
+					Share text <span class="kbd-hint">⌃⏎</span>
+				</button>
+			</div>
+		</div>
+		{:else}
 		<div
 			class="dropzone {isDragActive ? 'active' : ''} {active && active.state.kind !== 'error' ? 'is-busy' : ''}"
 			role="button"
@@ -608,9 +725,10 @@
 				max {maxSize >= 1024 * 1024 * 1024
 					? `${Math.round(maxSize / (1024 * 1024 * 1024))} GB`
 					: `${Math.round(maxSize / (1024 * 1024))} MB`}
-				· any file type · direct-to-S3 upload
+				· any file type · direct-to-S3 upload{globalPaste ? ' · Ctrl+V to paste a file' : ''}
 			</p>
 		</div>
+		{/if}
 
 		{#if active}
 			<FileItem file={active.file} uploadState={active.state} onCancel={cancel} onRetry={retry} />

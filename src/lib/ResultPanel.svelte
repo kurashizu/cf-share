@@ -25,6 +25,7 @@
 	} = $props();
 
 	let copied = $state(false);
+	let copiedCode = $state(false);
 	let copiedDirect = $state(false);
 	let copiedProxied = $state(false);
 	let now = $state(Date.now());
@@ -64,7 +65,7 @@
 			document.body.removeChild(ta);
 		}
 		setter(true);
-		if (btn) {
+		if (btn && !btn.dataset.keepLabel) {
 			const orig = btn.dataset.orig ?? btn.textContent ?? '';
 			btn.dataset.orig = orig;
 			btn.textContent = 'Copied ✓';
@@ -104,6 +105,17 @@
 			</div>
 
 			<div>
+				<button
+					class="share-code"
+					data-keep-label="1"
+					title="click to copy the code"
+					onclick={(e) => onCopy(shareToken, (v) => (copiedCode = v), e.currentTarget)}
+				>
+					<span class="share-code-label">share code {copiedCode ? '· copied ✓' : '· click to copy'}</span>
+					<span class="share-code-value">{shareToken}</span>
+					<span class="share-code-hint">enter this code on the home page to receive</span>
+				</button>
+
 				<div class="share-link">
 					<span class="small">share url</span>
 					{directDownloadUrl.startsWith(baseUrl + '/api/download/') ? baseUrl + '/d/' + shareToken : fullUrl}
