@@ -684,9 +684,7 @@
 					<span class="resume-tag">resumable</span>
 					<div class="resume-text">
 						<span class="resume-filename" title={latestPending.filename}>{latestPending.filename}</span>
-						<span class="resume-meta">
-							· {latestPending.progressPercent}% ({formatBytes(latestPending.loadedBytes)} / {formatBytes(latestPending.size)})
-						</span>
+						<span class="resume-meta">{latestPending.progressPercent}% · {formatBytes(latestPending.loadedBytes)}/{formatBytes(latestPending.size)}</span>
 					</div>
 				</div>
 				<div class="resume-actions">
@@ -697,13 +695,13 @@
 							document.querySelector<HTMLInputElement>('[data-upload-input]')?.click();
 						}}
 					>
-						Resume upload ›
+						Resume ›
 					</button>
 					<button
 						type="button"
 						class="resume-dismiss"
-						title="Discard unfinished upload"
-						aria-label="Discard unfinished upload"
+						title="Discard"
+						aria-label="Discard"
 						onclick={() => dismissPendingResume(latestPending.fingerprint)}
 					>
 						✕
