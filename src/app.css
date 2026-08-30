@@ -408,13 +408,16 @@ body::after {
 	border-left: 3px solid var(--accent);
 	box-shadow: var(--shadow-card);
 	animation: fade-up var(--t-base) var(--ease);
+	min-width: 0;
+	max-width: 100%;
+	box-sizing: border-box;
 }
 .resume-banner-main {
 	display: flex;
 	align-items: center;
 	gap: 10px;
 	min-width: 0;
-	flex-wrap: wrap;
+	flex: 1 1 auto;
 }
 .resume-tag {
 	display: inline-flex;
@@ -429,15 +432,18 @@ body::after {
 	padding: 2px 7px;
 	border-radius: var(--radius-sm);
 	white-space: nowrap;
+	flex-shrink: 0;
 }
 .resume-text {
 	display: flex;
-	align-items: center;
+	align-items: baseline;
 	gap: 6px;
 	font-family: var(--mono);
 	font-size: 13px;
 	color: var(--text);
 	min-width: 0;
+	flex: 1 1 auto;
+	overflow: hidden;
 }
 .resume-filename {
 	font-weight: 500;
@@ -445,12 +451,14 @@ body::after {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+	min-width: 0;
 	max-width: 220px;
 }
 .resume-meta {
 	color: var(--text-dim);
 	font-size: 12px;
 	white-space: nowrap;
+	flex-shrink: 0;
 }
 .resume-actions {
 	display: flex;
@@ -463,6 +471,7 @@ body::after {
 	font-size: 12px !important;
 	min-height: 28px !important;
 	font-weight: 600;
+	white-space: nowrap;
 }
 .resume-dismiss {
 	background: transparent;
@@ -477,6 +486,7 @@ body::after {
 	align-items: center;
 	justify-content: center;
 	line-height: 1;
+	flex-shrink: 0;
 }
 .resume-dismiss:hover {
 	color: var(--error);
@@ -1368,9 +1378,54 @@ pre code {
 
 	.share-link { font-size: 15px; padding: 10px 12px; }
 
-	.resume-banner { flex-direction: column; align-items: stretch; gap: 10px; }
-	.resume-banner-main { flex-direction: column; align-items: flex-start; gap: 6px; }
-	.resume-actions { justify-content: space-between; width: 100%; }
+	.resume-banner {
+		flex-direction: column;
+		align-items: stretch;
+		gap: 10px;
+		padding: 10px 12px;
+		width: 100%;
+		max-width: 100%;
+		box-sizing: border-box;
+	}
+	.resume-banner-main {
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 6px;
+		width: 100%;
+		min-width: 0;
+	}
+	.resume-text {
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 3px;
+		width: 100%;
+		min-width: 0;
+	}
+	.resume-filename {
+		max-width: 100%;
+		width: 100%;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		display: block;
+	}
+	.resume-meta {
+		font-size: 11px;
+		white-space: normal;
+		word-break: break-all;
+	}
+	.resume-actions {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		width: 100%;
+		gap: 8px;
+	}
+	.resume-btn {
+		flex: 1 1 auto;
+		text-align: center;
+		justify-content: center;
+	}
 
 	.code-cell { width: 44px; height: 54px; font-size: 22px; }
 	.code-cells { gap: 6px; }
