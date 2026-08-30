@@ -9,7 +9,9 @@
 		savePersistedUpload,
 		clearPersistedUpload,
 		gcPersistedUploads,
-		type PersistedPart
+		getPendingUploads,
+		type PersistedPart,
+		type PendingUploadSummary
 	} from './client/resume';
 
 	/** Number of samples to keep for speed calculation (rolling window). */
@@ -105,21 +107,76 @@
 	let password = $state('');
 	let cancelledRef = $state(false);
 	let isDragActive = $state(false);
+	let windowDragActive = $state(false);
+	let pendingResumes = $state<PendingUploadSummary[]>([]);
 	let mode = $state<'file' | 'text'>('file');
 	let text = $state('');
 	let textareaRef = $state<HTMLTextAreaElement | null>(null);
 
+	const latestPending = $derived(pendingResumes.length > 0 ? pendingResumes[0] : null);
 	const busy = $derived(active !== null && active.state.kind !== 'error');
 	// Text pastes are capped at the proxy threshold so the receiver always
 	// gets the inline view + one-click copy instead of a file download.
 	const TEXT_MAX_BYTES = DEFAULT_PROXY_MAX_FILE_SIZE;
 	const textBytes = $derived(new Blob([text]).size);
 
-	// GC stale persisted uploads on mount (e.g. abandoned uploads from
-	// previous sessions). Anything older than 6h is definitely dead since
-	// the multipart TTL is 1h.
+	function refreshPendingUploads() {
+		pendingResumes = getPendingUploads();
+	}
+
+	function dismissPendingResume(fp: string) {
+		clearPersistedUpload(fp);
+		refreshPendingUploads();
+	}
+
+	// GC stale persisted uploads on mount & check for resumable uploads
 	onMount(() => {
 		gcPersistedUploads(6 * 60 * 60 * 1000);
+		refreshPendingUploads();
+
+		let dragCounter = 0;
+		const onDragEnter = (e: DragEvent) => {
+			if (busy) return;
+			if (e.dataTransfer?.types?.includes('Files')) {
+				dragCounter++;
+				windowDragActive = true;
+			}
+		};
+		const onDragLeave = (e: DragEvent) => {
+			if (busy) return;
+			dragCounter = Math.max(0, dragCounter - 1);
+			if (dragCounter === 0) windowDragActive = false;
+		};
+		const onDragOver = (e: DragEvent) => {
+			if (busy) return;
+			if (e.dataTransfer?.types?.includes('Files')) {
+				e.preventDefault();
+			}
+		};
+		const onDropGlobal = (e: DragEvent) => {
+			dragCounter = 0;
+			windowDragActive = false;
+			isDragActive = false;
+			if (busy) return;
+			const files = Array.from(e.dataTransfer?.files ?? []);
+			if (files.length > 0) {
+				e.preventDefault();
+				mode = 'file';
+				startUpload(files[0]);
+			}
+		};
+
+		window.addEventListener('dragenter', onDragEnter);
+		window.addEventListener('dragleave', onDragLeave);
+		window.addEventListener('dragover', onDragOver);
+		window.addEventListener('drop', onDropGlobal);
+
+		return () => {
+			window.removeEventListener('dragenter', onDragEnter);
+			window.removeEventListener('dragleave', onDragLeave);
+			window.removeEventListener('dragover', onDragOver);
+			window.removeEventListener('drop', onDropGlobal);
+		};
 	});
 
 	// Global paste: Ctrl/Cmd+V anywhere on the page shares the clipboard —
@@ -396,11 +453,13 @@
 				s3UploadId: init.s3UploadId,
 				key: init.key,
 				size: file.size,
+				filename: file.name,
 				contentType: file.type || 'application/octet-stream',
 				uploadSig: init.uploadSig,
 				completedParts,
 				savedAt: Date.now()
 			});
+			refreshPendingUploads();
 		}
 
 		if (cancelledRef) return;
@@ -465,7 +524,10 @@
 				expiresAt: number;
 			};
 
-			if (fingerprint) clearPersistedUpload(fingerprint);
+			if (fingerprint) {
+				clearPersistedUpload(fingerprint);
+				refreshPendingUploads();
+			}
 
 			completed = {
 				shareToken: data.shareToken,
@@ -481,6 +543,7 @@
 			active = null;
 		} catch (err) {
 			setErrorState(file, startedAt, err);
+			refreshPendingUploads();
 		}
 	}
 
@@ -615,6 +678,43 @@
 		</span>
 	</div>
 	<div class="panel-body">
+		{#if latestPending && !busy && !completed}
+			<div class="resume-banner" role="status">
+				<div class="resume-banner-main">
+					<span class="resume-tag">
+						<span class="resume-pulse"></span>
+						⟳ unfinished upload
+					</span>
+					<div class="resume-text">
+						<span class="resume-filename" title={latestPending.filename}>{latestPending.filename}</span>
+						<span class="resume-meta">
+							· {latestPending.progressPercent}% ({formatBytes(latestPending.loadedBytes)} / {formatBytes(latestPending.size)})
+						</span>
+					</div>
+				</div>
+				<div class="resume-actions">
+					<button
+						type="button"
+						class="btn sm primary resume-btn"
+						onclick={() => {
+							document.querySelector<HTMLInputElement>('[data-upload-input]')?.click();
+						}}
+					>
+						Resume upload
+					</button>
+					<button
+						type="button"
+						class="resume-dismiss"
+						title="Discard this session"
+						aria-label="Discard this session"
+						onclick={() => dismissPendingResume(latestPending.fingerprint)}
+					>
+						✕
+					</button>
+				</div>
+			</div>
+		{/if}
+
 		<div class="mode-tabs" role="tablist">
 			<button
 				type="button"
@@ -696,7 +796,7 @@
 		</div>
 		{:else}
 		<div
-			class="dropzone {isDragActive ? 'active' : ''} {active && active.state.kind !== 'error' ? 'is-busy' : ''}"
+			class="dropzone {isDragActive ? 'active' : ''} {windowDragActive ? 'window-drag' : ''} {active && active.state.kind !== 'error' ? 'is-busy' : ''}"
 			role="button"
 			tabindex="0"
 			onclick={() => {
@@ -714,6 +814,7 @@
 			ondrop={(e) => {
 				e.preventDefault();
 				isDragActive = false;
+				windowDragActive = false;
 				if (active && active.state.kind !== 'error') return;
 				const files = Array.from(e.dataTransfer?.files ?? []);
 				onDrop(files);
@@ -737,7 +838,11 @@
 				}}
 			/>
 			<p class="dropzone-title">
-				{isDragActive ? '[ drop file ]' : '[ drop file here or click to select ]'}
+				{isDragActive
+					? '[ drop file to upload ]'
+					: windowDragActive
+						? '[ release file here to upload ]'
+						: '[ drop file here or click to select ]'}
 			</p>
 			<p class="dropzone-meta">
 				max {maxSize >= 1024 * 1024 * 1024
@@ -767,3 +872,11 @@
 		{/if}
 	</div>
 </div>
+
+{#if windowDragActive && !busy}
+	<div class="global-drag-overlay" aria-hidden="true">
+		<div class="global-drag-tip">
+			↓ Drop file anywhere to start upload
+		</div>
+	</div>
+{/if}

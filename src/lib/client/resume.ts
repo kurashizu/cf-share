@@ -6,7 +6,7 @@
  *
  * Shape:
  *   key = sha256-ish fingerprint of (filename, size, contentType, lastModified)
- *   value = { s3UploadId, key, size, completedParts: [{partNumber, etag}], savedAt }
+ *   value = { s3UploadId, key, size, filename, completedParts: [{partNumber, etag}], savedAt }
  *
  * Storage key prefix is namespaced under "cf-share:upload:" so it doesn't
  * collide with anything else.
@@ -28,12 +28,23 @@ export interface PersistedUpload {
   s3UploadId: string;
   key: string;
   size: number;
+  filename?: string;
   /** Content-Type sent at init — part of the signed upload grant. */
   contentType: string;
   /** Server-issued grant signature from init; required to resume/complete. */
   uploadSig: string;
   completedParts: PersistedPart[];
   /** Unix ms when this state was last updated. */
+  savedAt: number;
+}
+
+export interface PendingUploadSummary {
+  fingerprint: string;
+  filename: string;
+  size: number;
+  completedPartsCount: number;
+  loadedBytes: number;
+  progressPercent: number;
   savedAt: number;
 }
 
@@ -101,7 +112,7 @@ export function savePersistedUpload(fp: string, state: PersistedUpload): void {
   }
 }
 
-/** Drop the persisted state for a fingerprint (called on successful complete). */
+/** Drop the persisted state for a fingerprint (called on successful complete or user discard). */
 export function clearPersistedUpload(fp: string): void {
   if (typeof localStorage === "undefined") return;
   try {
@@ -109,6 +120,50 @@ export function clearPersistedUpload(fp: string): void {
   } catch {
     // ignore
   }
+}
+
+/**
+ * List uncompleted uploads that are still fresh (within maxAgeMs, default 2h).
+ * Used to render the resume banner.
+ */
+export function getPendingUploads(maxAgeMs = 2 * 60 * 60 * 1000): PendingUploadSummary[] {
+  if (typeof localStorage === "undefined") return [];
+  const cutoff = Date.now() - maxAgeMs;
+  const list: PendingUploadSummary[] = [];
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k || !k.startsWith(KEY_PREFIX)) continue;
+      const fp = k.slice(KEY_PREFIX.length);
+      const parsed = loadPersistedUpload(fp);
+      if (
+        !parsed ||
+        !parsed.savedAt ||
+        parsed.savedAt < cutoff ||
+        !parsed.completedParts ||
+        parsed.completedParts.length === 0
+      ) {
+        continue;
+      }
+      const partSize = 50 * 1024 * 1024; // standard 50 MB part size
+      const loadedBytes = Math.min(parsed.size, parsed.completedParts.length * partSize);
+      const progressPercent = Math.min(99, Math.round((loadedBytes / parsed.size) * 100));
+      const filename =
+        parsed.filename || parsed.key.split("/").pop() || "unfinished upload";
+      list.push({
+        fingerprint: fp,
+        filename,
+        size: parsed.size,
+        completedPartsCount: parsed.completedParts.length,
+        loadedBytes,
+        progressPercent,
+        savedAt: parsed.savedAt,
+      });
+    }
+  } catch {
+    // ignore
+  }
+  return list.sort((a, b) => b.savedAt - a.savedAt);
 }
 
 /**
