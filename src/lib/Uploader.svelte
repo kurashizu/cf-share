@@ -683,7 +683,7 @@
 				<div class="resume-banner-main">
 					<span class="resume-tag">
 						<span class="resume-pulse"></span>
-						⟳ unfinished upload
+						resumable
 					</span>
 					<div class="resume-text">
 						<span class="resume-filename" title={latestPending.filename}>{latestPending.filename}</span>
@@ -700,13 +700,13 @@
 							document.querySelector<HTMLInputElement>('[data-upload-input]')?.click();
 						}}
 					>
-						Resume upload
+						Resume upload ›
 					</button>
 					<button
 						type="button"
 						class="resume-dismiss"
-						title="Discard this session"
-						aria-label="Discard this session"
+						title="Discard unfinished upload"
+						aria-label="Discard unfinished upload"
 						onclick={() => dismissPendingResume(latestPending.fingerprint)}
 					>
 						✕

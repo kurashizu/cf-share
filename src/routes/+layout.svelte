@@ -1,7 +1,14 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import '../app.css';
 
 	let { children } = $props();
+
+	onMount(() => {
+		if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+			navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {});
+		}
+	});
 </script>
 
 <!-- Third ambient light orb (cyan-violet, lower-middle). The other two are

@@ -398,7 +398,7 @@ body::after {
 }
 
 /* ════════════════════════════════════════════════════════════════════════
-   RESUME BANNER — sleek dark-green banner when unfinished upload is found
+   RESUME BANNER — editorial dark-green banner when unfinished upload is found
    ════════════════════════════════════════════════════════════════════════ */
 .resume-banner {
 	display: flex;
@@ -406,10 +406,12 @@ body::after {
 	justify-content: space-between;
 	gap: 12px;
 	padding: 10px 14px;
-	margin-bottom: 14px;
+	margin-bottom: 16px;
 	border-radius: var(--radius);
-	background: rgba(91, 138, 102, 0.08);
-	border: 1px solid var(--border-strong);
+	background: rgba(8, 12, 10, 0.65);
+	border: 1px solid var(--border);
+	border-left: 3px solid var(--accent);
+	box-shadow: var(--shadow-card);
 	animation: fade-up var(--t-base) var(--ease);
 }
 .resume-banner-main {
@@ -428,9 +430,10 @@ body::after {
 	letter-spacing: 0.04em;
 	text-transform: uppercase;
 	color: var(--accent);
-	background: rgba(91, 138, 102, 0.15);
-	padding: 2px 8px;
-	border-radius: 4px;
+	background: rgba(91, 138, 102, 0.12);
+	border: 1px solid rgba(106, 158, 122, 0.2);
+	padding: 2px 7px;
+	border-radius: var(--radius-sm);
 	white-space: nowrap;
 }
 .resume-pulse {
@@ -451,10 +454,11 @@ body::after {
 }
 .resume-filename {
 	font-weight: 500;
+	color: var(--text);
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-	max-width: 200px;
+	max-width: 220px;
 }
 .resume-meta {
 	color: var(--text-dim);
@@ -471,16 +475,17 @@ body::after {
 	padding: 5px 12px !important;
 	font-size: 12px !important;
 	min-height: 28px !important;
+	font-weight: 600;
 }
 .resume-dismiss {
-	background: none;
-	border: none;
+	background: transparent;
+	border: 1px solid transparent;
 	color: var(--text-faint);
 	cursor: pointer;
 	padding: 4px 6px;
 	font-size: 13px;
-	border-radius: 4px;
-	transition: color var(--t-fast) var(--ease);
+	border-radius: var(--radius-sm);
+	transition: all var(--t-fast) var(--ease);
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -488,6 +493,8 @@ body::after {
 }
 .resume-dismiss:hover {
 	color: var(--error);
+	background: rgba(196, 123, 123, 0.08);
+	border-color: rgba(196, 123, 123, 0.2);
 }
 
 /* ════════════════════════════════════════════════════════════════════════
