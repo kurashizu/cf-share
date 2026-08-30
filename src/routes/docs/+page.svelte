@@ -24,8 +24,12 @@
 		</h2>
 		<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-3">
 			Every share is addressed by a short token: a fixed <strong>4 chars</strong>{" "}
-			from <code>[0-9A-Z]</code> (1.68M combinations; the active-share pool is
-			capped at a small fraction of that, so random generation never runs dry).
+			using <strong>Crockford Base32</strong> (<code>[0-9ABCDEFGHJKMNPQRSTVWXYZ]</code>,
+			1.05M combinations; excludes visually ambiguous letters <code>I</code>, <code>L</code>,
+			<code>O</code>, and <code>U</code>).
+			Decoding is error-tolerant: <code>O</code> maps to <code>0</code>, <code>I</code> and
+			<code>L</code> map to <code>1</code>, <code>U</code> maps to <code>V</code>, and casing is ignored.
+			The active-share pool is capped at a small fraction of the space, so random generation never runs dry.
 			The token is the whole address — <code>{APP_HOST}/d/ABCD</code> — so it can
 			be read aloud, typed on another device, or scanned from the QR code shown
 			after upload. The home page has a code input that looks the share up and

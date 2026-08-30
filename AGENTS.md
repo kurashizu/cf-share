@@ -77,9 +77,10 @@ that route streams the complete S3 body without buffering and does not support R
 
 ## Token Format
 
-Fixed 4 chars `[0-9A-Z]` (1,679,616 combos); collisions redraw at the same
-length. The active-share pool is capped at `MAX_TOTAL_COUNT` (50k) so random
-generation never starves. Legacy 5-6 char tokens still validate.
+Fixed 4 chars Crockford Base32 `[0-9ABCDEFGHJKMNPQRSTVWXYZ]` (1,048,576 combos,
+excludes I, L, O, U); error-tolerant decoding maps `O`->`0`, `I`/`L`->`1`, `U`->`V`, case-insensitive.
+Collisions redraw at the same length. The active-share pool is capped at `MAX_TOTAL_COUNT` (50k)
+so random generation never starves. Legacy 5-6 char tokens still validate.
 See `lib/share/token.ts`.
 
 ## Key Files

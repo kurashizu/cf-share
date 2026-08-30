@@ -4,6 +4,7 @@ import { deleteS3Object, deleteShareRow } from '@/lib/s3/cleanup';
 import { audit } from '@/lib/util/audit';
 import { getClientIp } from '@/lib/util/ip';
 import { requestIsAuthorized } from '@/lib/admin/auth';
+import { normalizeToken } from '@/lib/share/token';
 
 /**
  * DELETE /api/admin/delete?token=XXXX
@@ -26,8 +27,9 @@ export const DELETE: RequestHandler = async ({
 	}
 
 	// ── Validate ──────────────────────────────────────────────────────────
-	const token = url.searchParams.get('token');
-	if (!token || !/^[0-9A-Z]{4,6}$/.test(token)) {
+	const rawToken = url.searchParams.get('token');
+	const token = normalizeToken(rawToken);
+	if (!token) {
 		return json({ error: 'Invalid token' }, { status: 400 });
 	}
 

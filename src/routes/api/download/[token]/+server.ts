@@ -7,7 +7,7 @@ import { verifyPassword } from '@/lib/share/password';
 import { checkRateLimit } from '@/lib/rate-limit/check';
 import { getClientIp } from '@/lib/util/ip';
 import { audit } from '@/lib/util/audit';
-import { isValidToken } from '@/lib/share/token';
+import { normalizeToken } from '@/lib/share/token';
 
 /**
  * GET /api/download/:token — authenticated redirect to S3.
@@ -51,7 +51,8 @@ export const GET: RequestHandler = async ({
 	url
 }) => {
 	const env = platform!.env;
-	const { token } = params as { token: string };
+	const rawToken = (params as { token: string }).token;
+	const token = normalizeToken(rawToken);
 	const ip = getClientIp(request, getClientAddress());
 
 	try {
@@ -61,14 +62,14 @@ export const GET: RequestHandler = async ({
 			await audit(env, {
 				ip,
 				action: 'download',
-				shareToken: token,
+				shareToken: token ?? rawToken,
 				status: 429,
 				detail: { reason: 'rate-limit' }
 			});
 			return downloadJson({ error: 'Too Many Requests' }, 429);
 		}
 
-		if (!isValidToken(token)) {
+		if (!token) {
 			return downloadJson(
 				{ error: 'Not found' },
 				404,
@@ -174,7 +175,8 @@ export const POST: RequestHandler = async ({
 	getClientAddress
 }) => {
 	const env = platform!.env;
-	const { token } = params as { token: string };
+	const rawToken = (params as { token: string }).token;
+	const token = normalizeToken(rawToken);
 	const ip = getClientIp(request, getClientAddress());
 
 	const rl = await checkRateLimit(env, 'DOWNLOAD_LOOKUP_LIMIT', ip);
@@ -182,7 +184,7 @@ export const POST: RequestHandler = async ({
 		return json({ error: 'Too Many Requests' }, { status: 429 });
 	}
 
-	if (!isValidToken(token)) {
+	if (!token) {
 		return json({ error: 'Not found' }, { status: 404 });
 	}
 
