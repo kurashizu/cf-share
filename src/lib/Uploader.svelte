@@ -681,10 +681,7 @@
 		{#if latestPending && !busy && !completed}
 			<div class="resume-banner" role="status">
 				<div class="resume-banner-main">
-					<span class="resume-tag">
-						<span class="resume-pulse"></span>
-						resumable
-					</span>
+					<span class="resume-tag">resumable</span>
 					<div class="resume-text">
 						<span class="resume-filename" title={latestPending.filename}>{latestPending.filename}</span>
 						<span class="resume-meta">

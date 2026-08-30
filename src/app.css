@@ -35,7 +35,6 @@
 	--accent: #7a9c7e;          /* sage */
 	--accent-2: #5b8a66;        /* forest */
 	--accent-deep: #3d6a4a;     /* deep forest */
-	--accent-glow: rgba(91, 138, 102, 0.18);
 
 	/* muted status colours */
 	--success: #87a878;
@@ -160,10 +159,6 @@ body::after {
 	50%      { transform: translate(-140px, -90px) scale(1.08); opacity: 0.95; }
 }
 
-@keyframes pulse-glow {
-	0%, 100% { box-shadow: 0 0 0 0 rgba(201, 168, 91, 0.35); }
-	50%      { box-shadow: 0 0 0 6px transparent; }
-}
 @keyframes breathe {
 	0%, 100% { opacity: 1; transform: scale(1); }
 	50%      { opacity: 0.7; transform: scale(0.96); }
@@ -398,7 +393,7 @@ body::after {
 }
 
 /* ════════════════════════════════════════════════════════════════════════
-   RESUME BANNER — editorial dark-green banner when unfinished upload is found
+   RESUME BANNER — editorial dark-green matte banner for unfinished uploads
    ════════════════════════════════════════════════════════════════════════ */
 .resume-banner {
 	display: flex;
@@ -408,7 +403,7 @@ body::after {
 	padding: 10px 14px;
 	margin-bottom: 16px;
 	border-radius: var(--radius);
-	background: rgba(8, 12, 10, 0.65);
+	background: rgba(12, 18, 14, 0.7);
 	border: 1px solid var(--border);
 	border-left: 3px solid var(--accent);
 	box-shadow: var(--shadow-card);
@@ -424,24 +419,16 @@ body::after {
 .resume-tag {
 	display: inline-flex;
 	align-items: center;
-	gap: 6px;
 	font-family: var(--mono);
 	font-size: 11px;
 	letter-spacing: 0.04em;
 	text-transform: uppercase;
 	color: var(--accent);
-	background: rgba(91, 138, 102, 0.12);
-	border: 1px solid rgba(106, 158, 122, 0.2);
+	background: rgba(110, 140, 118, 0.08);
+	border: 1px solid var(--border);
 	padding: 2px 7px;
 	border-radius: var(--radius-sm);
 	white-space: nowrap;
-}
-.resume-pulse {
-	width: 6px;
-	height: 6px;
-	border-radius: 50%;
-	background: var(--accent);
-	animation: pulse-border 1.5s infinite;
 }
 .resume-text {
 	display: flex;
@@ -498,65 +485,33 @@ body::after {
 }
 
 /* ════════════════════════════════════════════════════════════════════════
-   DROPZONE — taller, more padding; soft inner glow on hover & drag
+   DROPZONE — clean matte editorial surface, zero glow
    ════════════════════════════════════════════════════════════════════════ */
 .dropzone {
-	border: 1.5px dashed rgba(106, 158, 122, 0.32);
+	border: 1.5px dashed var(--border-strong);
 	border-radius: var(--radius);
 	background: rgba(8, 12, 10, 0.35);
 	padding: 56px 28px;
 	text-align: center;
 	cursor: pointer;
-	transition: all var(--t-base) var(--ease);
+	transition: border-color var(--t-fast) var(--ease), background var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
 	position: relative;
-	overflow: hidden;
-}
-.dropzone::before {
-	content: '';
-	position: absolute;
-	inset: 0;
-	background: radial-gradient(circle at center, rgba(91, 138, 102, 0.10), transparent 70%);
-	opacity: 0;
-	transition: opacity var(--t-base) var(--ease);
-	pointer-events: none;
 }
 .dropzone:hover {
 	border-color: var(--accent);
 	border-style: solid;
+	background: rgba(14, 20, 16, 0.5);
 	transform: translateY(-1px);
 }
-.dropzone:hover::before { opacity: 1; }
-
 .dropzone.window-drag {
 	border-color: var(--accent);
 	border-style: dashed;
-	background: rgba(91, 138, 102, 0.08);
-	box-shadow: 0 0 0 1px var(--accent-glow), 0 6px 24px rgba(91, 138, 102, 0.15);
+	background: rgba(14, 20, 16, 0.45);
 }
-.dropzone.window-drag::before { opacity: 0.8; }
-
 .dropzone.active {
 	border-color: var(--accent);
 	border-style: solid;
-	background: rgba(91, 138, 102, 0.12);
-	transform: scale(1.015);
-	box-shadow: 0 0 0 1.5px var(--accent), 0 10px 36px rgba(91, 138, 102, 0.25);
-	animation: pulse-dropzone 1.4s ease-in-out infinite;
-}
-.dropzone.active::before {
-	opacity: 1;
-	background: radial-gradient(circle at center, rgba(91, 138, 102, 0.25), transparent 70%);
-}
-
-@keyframes pulse-dropzone {
-	0%, 100% {
-		border-color: var(--accent);
-		box-shadow: 0 0 0 1.5px var(--accent), 0 8px 24px rgba(91, 138, 102, 0.18);
-	}
-	50% {
-		border-color: var(--accent-2);
-		box-shadow: 0 0 0 2px var(--border-strong), 0 12px 38px rgba(91, 138, 102, 0.28);
-	}
+	background: rgba(18, 26, 20, 0.7);
 }
 
 .dropzone-title {
@@ -571,30 +526,28 @@ body::after {
 	font-family: var(--mono);
 }
 
-/* Global full-screen drag feedback */
+/* Global full-screen drag feedback (flat matte) */
 .global-drag-overlay {
 	position: fixed;
 	inset: 0;
 	pointer-events: none;
 	z-index: 99;
-	border: 2.5px dashed var(--accent);
-	background: rgba(10, 14, 12, 0.45);
-	box-shadow: inset 0 0 80px rgba(91, 138, 102, 0.15);
-	backdrop-filter: blur(1.5px);
+	border: 2px dashed var(--border-strong);
+	background: rgba(8, 12, 10, 0.72);
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	animation: fade-up 0.15s var(--ease);
+	animation: fade-up 0.12s var(--ease);
 }
 .global-drag-tip {
 	font-family: var(--mono);
-	font-size: 15px;
+	font-size: 14px;
 	color: var(--text);
-	background: rgba(12, 18, 15, 0.94);
+	background: var(--surface-2);
 	border: 1px solid var(--border-strong);
-	padding: 14px 28px;
-	border-radius: var(--radius);
-	box-shadow: 0 12px 36px rgba(0, 0, 0, 0.6);
+	padding: 12px 24px;
+	border-radius: var(--radius-sm);
+	box-shadow: var(--shadow-card);
 	letter-spacing: 0.03em;
 }
 
