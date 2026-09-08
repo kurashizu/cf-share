@@ -72,16 +72,22 @@
 </script>
 
 {#if loaded && shares.length > 0}
-	<div class="panel home-tips hide-md">
+	<div class="panel my-shares-panel">
 		<div class="panel-head">
 			<span class="tag">›</span> my_shares
 			<span class="meta">{shares.length} active</span>
 		</div>
 		<div class="panel-body panel-body-flush">
-			<ul class="my-shares-list">
+			<ul class="my-shares-list my-shares-list-wide">
 				{#each shares as s (s.token)}
-					<li class="my-shares-item">
-						<a href="/d/{s.token}" class="my-shares-name" title={s.filename}>{s.filename}</a>
+					<li class="my-shares-item my-shares-item-wide">
+						<a
+							href="/d/{s.token}"
+							class="my-shares-name"
+							title={s.filename}
+							data-sveltekit-preload-code="viewport"
+							data-sveltekit-preload-data="tap"
+						>{s.filename}</a>
 						<span class="my-shares-meta">
 							{formatBytes(s.sizeBytes)} · expires {formatExpiry(s.expiresAt)}{s.hasPassword
 								? ' · 🔒'

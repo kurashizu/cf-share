@@ -45,6 +45,8 @@
 		</div>
 	</div>
 
+	<MyShares bind:this={myShares} />
+
 	<div class="home-grid">
 		<section class="home-send">
 			<Uploader globalPaste onUploaded={() => myShares?.refresh()} />
@@ -52,8 +54,6 @@
 
 		<aside class="home-side">
 			<RetrievePanel />
-
-			<MyShares bind:this={myShares} />
 
 			<div class="panel home-tips hide-md">
 				<div class="panel-head">

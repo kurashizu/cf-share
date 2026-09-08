@@ -57,10 +57,8 @@
 				<h2 id="settings-title" class="modal-title">Site preferences</h2>
 
 				<dl class="meta-list" style="border:none; padding:0; grid-template-columns:1fr;">
-					<dt>delete-grant cookie</dt>
-					<dd>
-						<code>cf_owned</code> — lets you self-revoke shares you minted from this browser.
-					</dd>
+					<dt>your shares</dt>
+					<dd>this browser remembers which files you shared, so you can delete them early.</dd>
 					<dt>resume state</dt>
 					<dd>
 						{resumeCount > 0
@@ -70,10 +68,10 @@
 				</dl>
 
 				<p class="modal-text" style="margin-top:14px;">
-					Clearing wipes the <code>cf_owned</code> cookie, any interrupted-upload resume state,
-					and the cookie-consent flag. It does <strong>not</strong> delete your uploaded files —
-					they still expire on their own TTL. You just lose the ability to revoke them early
-					or resume an interrupted upload from this browser.
+					Clearing forgets which files you shared and any interrupted-upload progress on this
+					browser. It does <strong>not</strong> delete your uploaded files — they still expire
+					on their own schedule. You just lose the ability to revoke them early or resume an
+					interrupted upload from this browser.
 				</p>
 
 				{#if cleared}
