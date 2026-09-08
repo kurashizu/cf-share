@@ -1266,6 +1266,29 @@ pre code {
    so items lay out as a single row (name · meta · delete) across columns
    instead of stacking name/meta vertically. */
 .my-shares-panel { margin-bottom: 20px; }
+.my-shares-panel .panel-head .meta {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}
+.my-shares-clear-all {
+	background: transparent;
+	border: 1px solid var(--border);
+	border-radius: var(--radius-sm);
+	color: var(--text-faint);
+	font-family: var(--mono);
+	font-size: 11px;
+	letter-spacing: 0.04em;
+	padding: 3px 9px;
+	cursor: pointer;
+	transition: all var(--t-fast) var(--ease);
+}
+.my-shares-clear-all:hover {
+	border-color: var(--error);
+	color: var(--error);
+	background: rgba(196, 123, 123, 0.08);
+}
+.my-shares-clear-all:disabled { opacity: 0.5; cursor: not-allowed; }
 .my-shares-list-wide {
 	display: grid;
 	grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));

@@ -14,6 +14,7 @@
 	let shares = $state<MineShare[]>([]);
 	let loaded = $state(false);
 	let deleting = $state<Set<string>>(new Set());
+	let clearingAll = $state(false);
 
 	export async function refresh() {
 		try {
@@ -50,6 +51,33 @@
 		}
 	}
 
+	async function revokeAll() {
+		if (clearingAll || shares.length === 0) return;
+		if (
+			!confirm(
+				`Delete all ${shares.length} of your shares now? Anyone with a link will lose access immediately. This cannot be undone.`
+			)
+		) {
+			return;
+		}
+		clearingAll = true;
+		const tokens = shares.map((s) => s.token);
+		deleting = new Set(tokens);
+		try {
+			const results = await Promise.allSettled(
+				tokens.map((t) => fetch(`/api/share/${t}`, { method: 'DELETE' }))
+			);
+			const failed = new Set<string>();
+			results.forEach((r, i) => {
+				if (r.status === 'rejected' || !r.value.ok) failed.add(tokens[i]);
+			});
+			shares = shares.filter((s) => failed.has(s.token));
+		} finally {
+			deleting = new Set();
+			clearingAll = false;
+		}
+	}
+
 	function formatBytes(n: number): string {
 		if (n < 1024) return `${n} B`;
 		if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
@@ -75,7 +103,12 @@
 	<div class="panel my-shares-panel">
 		<div class="panel-head">
 			<span class="tag">›</span> my_shares
-			<span class="meta">{shares.length} active</span>
+			<span class="meta">
+				{shares.length} active
+				<button class="my-shares-clear-all" disabled={clearingAll} onclick={revokeAll}>
+					{clearingAll ? 'Deleting…' : 'Delete all'}
+				</button>
+			</span>
 		</div>
 		<div class="panel-body panel-body-flush">
 			<ul class="my-shares-list my-shares-list-wide">
