@@ -35,7 +35,7 @@ export function sanitizeFilename(name: string): string {
  *
  * Layout: uploads/{YYYY}/{MM}/{DD}/{share-token}/{filename}
  *
- * `shareToken` is a 4-6 char [0-9A-Z] string generated at complete-time.
+ * `shareToken` is a 4-6 char Crockford Base32 string generated at complete-time.
  * For init-time we use a placeholder that the client echoes back, so we can
  * still bucket by the (eventual) token in the directory tree.
  */

@@ -24,8 +24,12 @@
 		</h2>
 		<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-3">
 			Every share is addressed by a short token: a fixed <strong>4 chars</strong>{" "}
-			from <code>[0-9A-Z]</code> (1.68M combinations; the active-share pool is
-			capped at a small fraction of that, so random generation never runs dry).
+			using <strong>Crockford Base32</strong> (<code>[0-9ABCDEFGHJKMNPQRSTVWXYZ]</code>,
+			1.05M combinations; excludes visually ambiguous letters <code>I</code>, <code>L</code>,
+			<code>O</code>, and <code>U</code>).
+			Decoding is error-tolerant: <code>O</code> maps to <code>0</code>, <code>I</code> and
+			<code>L</code> map to <code>1</code>, <code>U</code> maps to <code>V</code>, and casing is ignored.
+			The active-share pool is capped at a small fraction of the space, so random generation never runs dry.
 			The token is the whole address — <code>{APP_HOST}/d/ABCD</code> — so it can
 			be read aloud, typed on another device, or scanned from the QR code shown
 			after upload. The home page has a code input that looks the share up and
@@ -216,6 +220,25 @@
 			+ database row) immediately, without logging in. No cookie for the token, no delete —
 			this is not a general-purpose delete API. Clearing cookies forfeits the ability to revoke
 			the share early; it will still expire normally via its TTL.
+		</p>
+
+		<h3 class="text-xl font-semibold mt-6 mb-3 text-neutral-800 dark:text-neutral-100">
+			<code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">GET /api/share/mine</code> — List shares you own
+		</h3>
+		<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-2">
+			Returns <code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">{"{shares: [...]}"}</code> for every
+			token in this browser's <code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">cf_owned</code> cookie
+			that still exists (filename, size, expiry, download count, whether it's password-protected). Tokens whose
+			share has already expired or been deleted are silently dropped from the response and pruned from the cookie.
+		</p>
+
+		<h3 class="text-xl font-semibold mt-6 mb-3 text-neutral-800 dark:text-neutral-100">
+			<code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">DELETE /api/share/mine</code> — Forget everything you own
+		</h3>
+		<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-2">
+			Clears the <code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">cf_owned</code> cookie entirely.
+			Does not delete the underlying shares — they still expire on their own TTL. You just lose the
+			ability to revoke them early from this browser.
 		</p>
 
 		<!-- ── Text / clipboard shares ────────────────────────────────────── -->

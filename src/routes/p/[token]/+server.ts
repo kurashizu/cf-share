@@ -7,7 +7,7 @@ import { checkRateLimit } from '@/lib/rate-limit/check';
 import { getClientIp } from '@/lib/util/ip';
 import { audit } from '@/lib/util/audit';
 import { contentDisposition } from '@/lib/util/content-disposition';
-import { isValidToken } from '@/lib/share/token';
+import { normalizeToken } from '@/lib/share/token';
 
 function errorResponse(message: string, status: number): Response {
 	return new Response(JSON.stringify({ error: message }), {
@@ -34,7 +34,8 @@ export const GET: RequestHandler = async ({
 	getClientAddress
 }) => {
 	const env = platform!.env;
-	const { token } = params as { token: string };
+	const rawToken = (params as { token: string }).token;
+	const token = normalizeToken(rawToken);
 	const ip = getClientIp(request, getClientAddress());
 
 	try {
@@ -43,14 +44,14 @@ export const GET: RequestHandler = async ({
 			await audit(env, {
 				ip,
 				action: 'download',
-				shareToken: token,
+				shareToken: token ?? rawToken,
 				status: 429,
 				detail: { reason: 'rate-limit', proxy: true }
 			});
 			return errorResponse('Too Many Requests', 429);
 		}
 
-		if (!isValidToken(token)) return errorResponse('Not found', 404);
+		if (!token) return errorResponse('Not found', 404);
 
 		const share = await getShare(env, token);
 		if (!share) {

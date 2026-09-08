@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { normalizeToken } from '@/lib/share/token';
 
-	// Share codes are a fixed 4 chars of [0-9A-Z] (see lib/share/token.ts).
+	// Share codes are a fixed 4 chars of Crockford Base32 (see lib/share/token.ts).
 	const LEN = 4;
 
 	let cells = $state<string[]>(Array(LEN).fill(''));
@@ -13,12 +14,17 @@
 	const code = $derived(cells.join(''));
 
 	function sanitize(raw: string): string {
-		return raw.toUpperCase().replace(/[^0-9A-Z]/g, '');
+		return raw
+			.toUpperCase()
+			.replace(/O/g, '0')
+			.replace(/[IL]/g, '1')
+			.replace(/U/g, 'V')
+			.replace(/[^0-9ABCDEFGHJKMNPQRSTVWXYZ]/g, '');
 	}
 
 	/** Accept a full share URL or a bare code and return the token part. */
 	function extractToken(raw: string): string {
-		const m = raw.match(/\/(?:d|p)\/([0-9A-Za-z]{4})/);
+		const m = raw.match(/\/(?:d|p)\/([0-9A-Za-z_-]{4,6})/);
 		return sanitize(m ? m[1] : raw).slice(0, LEN);
 	}
 
@@ -107,8 +113,8 @@
 
 	async function submit() {
 		if (checking) return;
-		const candidate = code;
-		if (!/^[0-9A-Z]{4}$/.test(candidate)) return;
+		const candidate = normalizeToken(code);
+		if (!candidate || candidate.length !== LEN) return;
 		checking = true;
 		errorMsg = '';
 		try {

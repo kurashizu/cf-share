@@ -7,6 +7,7 @@ import { checkRateLimit } from '@/lib/rate-limit/check';
 import { requestIsAuthorized } from '@/lib/admin/auth';
 import { verifyDeleteGrant } from '@/lib/share/delete-grant';
 import { findOwnedSig, buildOwnedCookieHeaderWithout } from '@/lib/share/owned-cookie';
+import { normalizeToken } from '@/lib/share/token';
 
 /**
  * DELETE /api/share/:token
@@ -20,8 +21,8 @@ export const DELETE: RequestHandler = async ({ request, platform, params, getCli
 	const env = platform!.env;
 	const ip = getClientIp(request, getClientAddress());
 
-	const token = params.token ?? '';
-	if (!/^[0-9A-Z]{4,6}$/.test(token)) {
+	const token = normalizeToken(params.token);
+	if (!token) {
 		return json({ error: 'Invalid token' }, { status: 400 });
 	}
 

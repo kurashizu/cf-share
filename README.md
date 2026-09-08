@@ -20,7 +20,7 @@ to short-lived presigned S3 URLs; file bytes do not pass through the Worker.
 | Default TTL | 24 hours |
 | Per-IP daily upload | 20 GB total, 100 files |
 | S3 pool total | 100 GB / 50,000 shares (across all active shares) |
-| Token format | fixed 4 alphanumeric chars (`[0-9A-Z]{4}`; pool capped at 50k active shares) |
+| Token format | fixed 4 Crockford Base32 chars (`[0-9ABCDEFGHJKMNPQRSTVWXYZ]{4}`; error-tolerant decoding `O`→`0`, `I`/`L`→`1`, `U`→`V`; pool capped at 50k active shares) |
 | Proxied-link threshold | 2 MiB by default (`PROXY_MAX_FILE_SIZE`), unprotected files only |
 
 ## Routes
