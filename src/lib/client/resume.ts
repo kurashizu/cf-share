@@ -17,7 +17,7 @@
  * against the old upload.
  */
 
-const KEY_PREFIX = "cf-share:upload:";
+export const KEY_PREFIX = "cf-share:upload:";
 
 export interface PersistedPart {
   partNumber: number;

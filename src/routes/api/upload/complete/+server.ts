@@ -16,6 +16,27 @@ import { requestIsAuthorized } from '@/lib/admin/auth';
 import { canProxyFile } from '@/lib/config/proxy';
 import { verifyUploadGrant, isValidUploadKey } from '@/lib/share/upload-grant';
 import { checkPoolCapacity } from '@/lib/share/pool';
+import { signDeleteGrant } from '@/lib/share/delete-grant';
+import { buildOwnedCookieHeader } from '@/lib/share/owned-cookie';
+
+/** 400 days — Chrome's Set-Cookie Max-Age hard cap — comfortably outlives even a "never expires" share's cookie-based revocation window. */
+const OWNED_COOKIE_MAX_AGE_SECONDS = 400 * 24 * 60 * 60;
+
+/** Append the freshly-minted token's delete grant to the `cf_owned` cookie on a response. */
+async function withOwnedCookie(
+	response: Response,
+	request: Request,
+	env: CloudflareEnv,
+	token: string
+): Promise<Response> {
+	const sig = await signDeleteGrant(env, token);
+	const cookie = buildOwnedCookieHeader(request.headers.get('cookie'), { t: token, s: sig }, {
+		secure: true,
+		maxAgeSeconds: OWNED_COOKIE_MAX_AGE_SECONDS
+	});
+	response.headers.append('Set-Cookie', cookie);
+	return response;
+}
 
 interface CompleteBody {
 	mode?: unknown;
@@ -493,7 +514,7 @@ async function handleComplete(
 			proxyUrl: canProxyFile(env, size, !!passwordHash) ? `/p/${token}` : null,
 			expiresAt
 		};
-		return json(response);
+		return withOwnedCookie(json(response), request, env, token);
 	}
 
 	// ──────────────────────────────────────────────────────────────────
@@ -679,5 +700,5 @@ async function handleComplete(
 		proxyUrl: canProxyFile(env, size, !!passwordHash) ? `/p/${token}` : null,
 		expiresAt
 	};
-	return json(response);
+	return withOwnedCookie(json(response), request, env, token);
 }

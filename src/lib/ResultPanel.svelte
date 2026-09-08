@@ -30,6 +30,9 @@
 	let copiedProxied = $state(false);
 	let now = $state(Date.now());
 	let canvasRef = $state<HTMLCanvasElement | null>(null);
+	let revoking = $state(false);
+	let revoked = $state(false);
+	let revokeError = $state('');
 
 	const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
 	const directDownloadUrl = $derived(
@@ -109,6 +112,27 @@
 		if (n < 1024 * 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`;
 		return `${(n / 1024 / 1024 / 1024).toFixed(2)} GB`;
 	}
+
+	async function revoke() {
+		if (revoking || revoked) return;
+		if (!confirm('Delete this share now? Anyone with the link will lose access immediately.')) {
+			return;
+		}
+		revoking = true;
+		revokeError = '';
+		try {
+			const r = await fetch(`/api/share/${shareToken}`, { method: 'DELETE' });
+			if (!r.ok) {
+				const body = (await r.json().catch(() => ({}))) as { error?: string };
+				throw new Error(body.error || `${r.status}`);
+			}
+			revoked = true;
+		} catch (err) {
+			revokeError = err instanceof Error ? err.message : String(err);
+		} finally {
+			revoking = false;
+		}
+	}
 </script>
 
 <div class="panel" style="margin-top:14px;">
@@ -179,5 +203,18 @@
 			Anyone with this link can download the file until it expires. After expiry, the
 			file is deleted from storage.
 		</p>
+
+		<div class="revoke-row" style="margin-top:14px;">
+			{#if revoked}
+				<p class="password-form" style="margin:0;">Share deleted. The link no longer works.</p>
+			{:else}
+				<button class="btn outline danger" disabled={revoking} onclick={revoke}>
+					{revoking ? 'Deleting…' : 'Delete this share'}
+				</button>
+				{#if revokeError}
+					<p class="password-form warn" style="margin:6px 0 0;">Failed to delete: {revokeError}</p>
+				{/if}
+			{/if}
+		</div>
 	</div>
 </div>

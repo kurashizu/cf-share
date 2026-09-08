@@ -207,6 +207,17 @@
 			<code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">{"{verified: true, downloadUrl}"}</code>.
 		</p>
 
+		<h3 class="text-xl font-semibold mt-6 mb-3 text-neutral-800 dark:text-neutral-100">
+			<code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">DELETE /api/share/:token</code> — Revoke your own share
+		</h3>
+		<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-2">
+			On upload, the browser that minted a share receives a signed <code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">cf_owned</code> cookie
+			for that token. That same browser can call this endpoint to delete the share (S3 object
+			+ database row) immediately, without logging in. No cookie for the token, no delete —
+			this is not a general-purpose delete API. Clearing cookies forfeits the ability to revoke
+			the share early; it will still expire normally via its TTL.
+		</p>
+
 		<!-- ── Text / clipboard shares ────────────────────────────────────── -->
 		<hr class="my-8 border-neutral-200 dark:border-neutral-800" />
 		<h2 class="text-2xl font-bold mt-10 mb-4 text-neutral-900 dark:text-neutral-50" id="text">

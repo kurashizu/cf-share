@@ -29,7 +29,10 @@ Env is read via `event.platform.env` (see `src/app.d.ts` for `App.Platform`).
 | POST | `/api/download/:token` | Password verification |
 | POST | `/api/upload/init` | Reserve presigned PUT URL (admin auth skips all quotas) |
 | POST | `/api/upload/resume` | Re-sign missing parts for interrupted multipart upload |
-| POST | `/api/upload/complete` | Mint share token |
+| POST | `/api/upload/complete` | Mint share token; sets `cf_owned` delete-grant cookie for it |
+| DELETE | `/api/share/:token` | Self-service delete via `cf_owned` cookie (or admin JWT) |
+| GET | `/api/share/mine` | List shares owned by this browser; prunes dead tokens from `cf_owned` |
+| DELETE | `/api/share/mine` | Clear the `cf_owned` cookie (Settings panel) |
 | GET | `/api/health` | Health check |
 | GET/POST | `/api/cron/cleanup` | Manual cleanup trigger (`X-Cron-Secret`) |
 | GET/POST | `/api/admin/shares` | List shares (auth) |
@@ -85,10 +88,12 @@ See `lib/share/token.ts`.
 ## Key Files
 
 - `src/lib/Uploader.svelte` (+ `FileItem.svelte`, `ResultPanel.svelte`, `client/resume.ts`) — upload UI
+- `src/lib/MyShares.svelte` — "my shares" sidebar card; lists + self-deletes shares owned by this browser
+- `src/lib/CookieConsent.svelte`, `src/lib/SettingsPanel.svelte`, `src/lib/client/prefs.ts` — first-visit consent modal and the Settings panel's "clear site preferences & cache" action
 - `src/lib/DownloadPage.svelte` — `/d/:token` page component
 - `src/routes/admin/+page.svelte` — admin panel (shares/audit/upload tabs)
 - `lib/s3/` — S3 client, presign, multipart, cleanup, policy, polyfill
-- `lib/share/` — Token gen, password hash (Web Crypto), D1 store
+- `lib/share/` — Token gen, password hash (Web Crypto), D1 store, upload/delete grants, `cf_owned` cookie
 - `lib/admin/auth.ts` — JWT sign/verify for admin sessions (`cf_admin` cookie)
 - `custom-worker.ts` — adapter-cloudflare wrapper: re-exports the generated
   worker's `fetch` + adds the `scheduled` cron handler (→ `runCleanup`)

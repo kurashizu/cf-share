@@ -6,11 +6,31 @@
 <script lang="ts">
 	import Uploader from '$lib/Uploader.svelte';
 	import RetrievePanel from '$lib/RetrievePanel.svelte';
+	import MyShares from '$lib/MyShares.svelte';
+	import CookieConsent from '$lib/CookieConsent.svelte';
+	import SettingsPanel from '$lib/SettingsPanel.svelte';
+
+	let myShares: MyShares | undefined = undefined;
+	let logoSpinning = $state(false);
+
+	function spinLogo() {
+		if (logoSpinning) return;
+		logoSpinning = true;
+		setTimeout(() => (logoSpinning = false), 600);
+	}
 </script>
+
+<CookieConsent />
 
 <main class="wrap">
 	<div class="hero">
-		<div class="hero-logo"><img src="/favicon.svg" alt="KRSZ Share" /></div>
+		<button
+			class="hero-logo {logoSpinning ? 'spin' : ''}"
+			onclick={spinLogo}
+			aria-label="KRSZ Share logo"
+		>
+			<img src="/favicon.svg" alt="KRSZ Share" />
+		</button>
 		<div>
 			<h1>KRSZ Share</h1>
 			<p class="slogan">
@@ -19,6 +39,7 @@
 			<p>Share a file or your clipboard — get a 4-character code and a short-lived link.</p>
 			<div class="hero-links">
 				<a href="/docs" class="hero-link">› API documentation</a>
+				<SettingsPanel onCleared={() => myShares?.refresh()} />
 				<a href="/admin" class="hero-link">› Admin</a>
 			</div>
 		</div>
@@ -26,11 +47,13 @@
 
 	<div class="home-grid">
 		<section class="home-send">
-			<Uploader omitCredentials globalPaste />
+			<Uploader globalPaste onUploaded={() => myShares?.refresh()} />
 		</section>
 
 		<aside class="home-side">
 			<RetrievePanel />
+
+			<MyShares bind:this={myShares} />
 
 			<div class="panel home-tips hide-md">
 				<div class="panel-head">

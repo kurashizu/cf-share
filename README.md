@@ -37,7 +37,10 @@ to short-lived presigned S3 URLs; file bytes do not pass through the Worker.
 | POST | `/api/download/:token` | same | Verify password → return download URL |
 | POST | `/api/upload/init` | `+server.ts` | Reserve a presigned PUT URL (single or multipart); returns a signed `uploadSig` grant over `(key, size, contentType)` |
 | POST | `/api/upload/resume` | `+server.ts` | Re-sign missing multipart parts (requires `uploadSig`) |
-| POST | `/api/upload/complete` | `+server.ts` | Verify `uploadSig` + S3 object, mint a share token; returns `proxyUrl` for eligible unprotected small files |
+| POST | `/api/upload/complete` | `+server.ts` | Verify `uploadSig` + S3 object, mint a share token; returns `proxyUrl` for eligible unprotected small files; sets the `cf_owned` delete-grant cookie for the new token |
+| DELETE | `/api/share/:token` | `+server.ts` | Self-service delete — requires the `cf_owned` cookie entry minted for this token at upload time (or an admin JWT) |
+| GET | `/api/share/mine` | `+server.ts` | List shares owned by this browser (per `cf_owned`); prunes dead tokens from the cookie |
+| DELETE | `/api/share/mine` | `+server.ts` | Clear the `cf_owned` cookie entirely (Settings panel action) |
 | GET | `/api/health` | `+server.ts` | `{ status, db, s3, limits }` |
 | GET/POST | `/api/admin/shares` | `+server.ts` | List shares (authenticated) |
 | GET/POST | `/api/admin/audit` | `+server.ts` | List audit log (authenticated) |

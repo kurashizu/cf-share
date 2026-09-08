@@ -88,13 +88,16 @@
 		maxSize = DEFAULT_MAX_SIZE,
 		ttlPresets = ANON_TTL_PRESETS,
 		omitCredentials = false,
-		globalPaste = false
+		globalPaste = false,
+		onUploaded = undefined
 	}: {
 		extraHeaders?: Record<string, string>;
 		maxSize?: number;
 		ttlPresets?: { label: string; value: number }[];
 		omitCredentials?: boolean;
 		globalPaste?: boolean;
+		/** Called after a share is minted (fresh token in the `cf_owned` cookie). */
+		onUploaded?: () => void;
 	} = $props();
 
 	const fetchOpts = $derived<RequestInit>(omitCredentials ? { credentials: 'omit' } : {});
@@ -479,6 +482,7 @@
 				password: passwordValue
 			};
 			active = null;
+			onUploaded?.();
 		} catch (err) {
 			setErrorState(file, startedAt, err);
 		}
@@ -601,7 +605,7 @@
 	}
 </script>
 
-<div class="panel">
+<div class="panel panel-stretch">
 	<div class="panel-head">
 		<span class="tag">›</span> send
 		<span class="meta">

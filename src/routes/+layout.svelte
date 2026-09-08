@@ -11,5 +11,11 @@
 {@render children()}
 
 <footer class="foot">
-	KRSZ Share · share.krsz.in
+	KRSZ Share · share.krsz.in ·
+	<a
+		href="https://github.com/kurashizu/cf-share/commit/{__BUILD_COMMIT__}"
+		target="_blank"
+		rel="noopener noreferrer"
+		title="build commit"
+	>{__BUILD_COMMIT__}</a>
 </footer>
