@@ -22,6 +22,11 @@ to short-lived presigned S3 URLs; file bytes do not pass through the Worker.
 | S3 pool total | 100 GB / 50,000 shares (across all active shares) |
 | Token format | fixed 4 Crockford Base32 chars (`[0-9ABCDEFGHJKMNPQRSTVWXYZ]{4}`; error-tolerant decoding `O`→`0`, `I`/`L`→`1`, `U`→`V`; pool capped at 50k active shares) |
 | Proxied-link threshold | 2 MiB by default (`PROXY_MAX_FILE_SIZE`), unprotected files only |
+| Tunnel code format | `Z` + 3 Crockford Base32 chars — share tokens never draw a leading `Z`, so the two address spaces never collide |
+| Tunnel peers | up to 4 per code |
+| Tunnel inline size | 1 MiB per message (text/image/file); larger falls back to a normal share and posts a share-link card |
+| Tunnel history | last 10 messages, kept in the Durable Object's own storage (not D1); wiped once every peer disconnects |
+| Unjoined tunnel TTL | 1 day (pruned by the cleanup cron); once a second peer joins, the tunnel lives until everyone leaves |
 
 ## Routes
 
@@ -49,6 +54,11 @@ to short-lived presigned S3 URLs; file bytes do not pass through the Worker.
 | POST | `/api/admin/login` | `+server.ts` | Submit admin password, set `cf_admin` JWT cookie (rate-limited 5/min/IP) |
 | POST | `/api/admin/logout` | `+server.ts` | Clear the `cf_admin` cookie |
 | GET/POST | `/api/cron/cleanup` | `+server.ts` | Manual cleanup trigger (requires `CRON_SECRET`) |
+| GET | `/tunnel` | `src/routes/tunnel/+page.svelte` | Create or join a clipboard tunnel |
+| GET | `/tunnel/:code` | `src/routes/tunnel/[code]/+page.svelte` | Tunnel room — join form, then the live chat view |
+| POST | `/api/tunnel` | `+server.ts` | Mint a `Z`-prefixed tunnel code; optional password |
+| GET | `/api/tunnel/:code/ws` | `+server.ts` | WebSocket upgrade, forwarded into the tunnel's Durable Object |
+| GET/POST | `/api/tunnel/:code/file/:seq` | `+server.ts` | Redirect to a presigned S3 URL for an inline file message; POST body carries the password for protected tunnels (never a query string) |
 
 ## Admin Panel
 
@@ -128,6 +138,14 @@ Browser ──PUT──► S3 (presigned URL)
   └── GET  /p/:token            ──► Worker (auth + stream) ──► S3
 
 Cleanup: cron (scheduled handler in custom-worker.ts) ──► D1 (find expired) ──► S3 (delete) ──► D1 (remove row)
+
+Browser ──WS──► GET /api/tunnel/:code/ws ──► Worker (D1 existence + rate-limit) ──► TunnelRoomV2 (Durable Object)
+                                                                                       │
+                                                                    hibernatable WebSockets, up to 4 peers
+                                                                    broadcast to all peers (sender included)
+                                                                    last 10 messages in DO storage (LRU)
+                                                                    files ≤1MB → R2 (DO storage keeps a pointer)
+                                                                    all peers disconnect ──► wipe storage + R2 objects
 ```
 
 ## Gotchas
@@ -152,6 +170,19 @@ Cleanup: cron (scheduled handler in custom-worker.ts) ──► D1 (find expired
 - **Verifying changes:** direct presigned-S3 downloads are 100% reliable. Loop
   on a known-good share and require the response to keep `Content-Length` +
   full byte count + matching SHA-256 every time.
+- **Durable Objects cannot be tested with `npm run dev`.** `vite dev`'s
+  platform proxy does not run DO classes locally (Cloudflare's own
+  limitation — DOs need a separate Worker + config to run locally at all).
+  Tunnel changes must be verified against the deployed Worker.
+- **The global security-headers hook skips `101` responses.** A WebSocket
+  upgrade `Response` has immutable headers in the Workers runtime;
+  `src/hooks.server.ts` special-cases `response.status === 101` before
+  calling `.headers.set(...)`, otherwise every tunnel join 500s.
+- **Tunnel history lives in the DO, not D1.** `database/migrations/0004_tunnel.sql`'s
+  `tunnels` table only tracks code existence/uniqueness and the optional
+  password hash — never message content. The cleanup cron only ever looks
+  at the `shares` table, so any R2 object a tunnel writes must be deleted by
+  the DO itself (`TunnelRoomV2.wipeRoom()`), not the cron.
 
 ## See Also
 

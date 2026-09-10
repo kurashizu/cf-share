@@ -318,6 +318,58 @@ curl -fsS "${APP_URL}/p/AB3F"`}</code></pre>
 			<code>/p/:token</code>.
 		</p>
 
+		<!-- ── Clipboard tunnels ──────────────────────────────────────────── -->
+		<hr class="my-8 border-neutral-200 dark:border-neutral-800" />
+		<h2 class="text-2xl font-bold mt-10 mb-4 text-neutral-900 dark:text-neutral-50" id="tunnels">
+			Clipboard Tunnels
+		</h2>
+		<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-3">
+			A tunnel is a small real-time room: up to <strong>4 people</strong> join with
+			the same code and everything one person copies or drops in — text, an
+			image, a file — shows up for everyone else instantly, over a WebSocket.
+			Tunnel codes always start with <code>Z</code> (share codes never do), so
+			the same 4-char input box on the home page can tell the two apart. Create
+			one at <code>/tunnel</code>, optionally with a password; the code and an
+			optional display name are all anyone needs to join at <code>/tunnel/:code</code>.
+		</p>
+		<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-3">
+			Nothing is written to the database for message content — the last 10
+			messages live only in memory on the server process handling that tunnel,
+			and are wiped the moment everyone disconnects. Messages up to
+			<strong> 1 MiB</strong> go straight through; anything larger is uploaded as
+			a normal share instead and posted into the tunnel as a link card, so the
+			size limit never actually blocks you from sending something big.
+		</p>
+		<div class="overflow-x-auto mb-4">
+			<table class="w-full text-sm border-collapse">
+				<thead>
+					<tr class="border-b border-neutral-300 dark:border-neutral-700 text-left">
+						<th class="py-2 pr-4 font-medium">Endpoint</th>
+						<th class="py-2 font-medium">Purpose</th>
+					</tr>
+				</thead>
+				<tbody>
+					<tr class="border-b border-neutral-200 dark:border-neutral-800">
+						<td class="py-2 pr-4"><code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">POST /api/tunnel</code></td>
+						<td class="py-2">Body <code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">{"{password?}"}</code>. Returns <code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">{"{code, hasPassword, expiresAt}"}</code>.</td>
+					</tr>
+					<tr class="border-b border-neutral-200 dark:border-neutral-800">
+						<td class="py-2 pr-4"><code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">GET /api/tunnel/:code/ws</code></td>
+						<td class="py-2">WebSocket upgrade. Query params <code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">name</code> and <code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">password</code> (if the tunnel has one).</td>
+					</tr>
+					<tr>
+						<td class="py-2 pr-4"><code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">GET/POST /api/tunnel/:code/file/:seq</code></td>
+						<td class="py-2">Redirects to a presigned S3 URL for a file/image message. POST body carries the password for protected tunnels (never a query string).</td>
+					</tr>
+				</tbody>
+			</table>
+		</div>
+		<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-3">
+			A tunnel created but never joined by a second person expires after a day.
+			Once someone joins, it stays open until everyone leaves — there's no
+			separate timer for an active conversation.
+		</p>
+
 		<!-- ── Admin ──────────────────────────────────────────────────────── -->
 		<hr class="my-8 border-neutral-200 dark:border-neutral-800" />
 		<h2 class="text-2xl font-bold mt-10 mb-4 text-neutral-900 dark:text-neutral-50" id="admin">
@@ -424,9 +476,25 @@ curl -fsS "${APP_URL}/p/AB3F"`}</code></pre>
 						<td class="py-2 pr-4">Presigned GET expiry</td>
 						<td class="py-2">Remaining share TTL, capped at 7 days by S3 SigV4. Admin “no expiry” shares receive a maximum 7-day URL.</td>
 					</tr>
-					<tr>
+					<tr class="border-b border-neutral-200 dark:border-neutral-800">
 						<td class="py-2 pr-4">Rate limits (anon, 60s)</td>
 						<td class="py-2">30 init / 30 complete / 60 download / 30 lookup</td>
+					</tr>
+					<tr class="border-b border-neutral-200 dark:border-neutral-800">
+						<td class="py-2 pr-4">Tunnel peers</td>
+						<td class="py-2">4 max per code</td>
+					</tr>
+					<tr class="border-b border-neutral-200 dark:border-neutral-800">
+						<td class="py-2 pr-4">Tunnel inline message size</td>
+						<td class="py-2">1 MiB — larger falls back to a normal share</td>
+					</tr>
+					<tr class="border-b border-neutral-200 dark:border-neutral-800">
+						<td class="py-2 pr-4">Tunnel history</td>
+						<td class="py-2">last 10 messages, in memory only</td>
+					</tr>
+					<tr>
+						<td class="py-2 pr-4">Unjoined tunnel expiry</td>
+						<td class="py-2">1 day</td>
 					</tr>
 				</tbody>
 			</table>

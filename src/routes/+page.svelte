@@ -69,6 +69,8 @@
 						<dd>5 minutes to 7 days, then it's gone from storage</dd>
 						<dt>privacy</dt>
 						<dd>optional password; sensitive text is best shared with one</dd>
+						<dt>live tunnel</dt>
+						<dd>need back-and-forth instead of a one-way link? open a <a href="/tunnel">clipboard tunnel</a> — up to 4 people, real time</dd>
 					</dl>
 				</div>
 			</div>
