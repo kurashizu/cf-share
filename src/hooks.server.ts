@@ -10,6 +10,12 @@ import type { Handle } from '@sveltejs/kit';
 export const handle: Handle = async ({ event, resolve }) => {
 	const response = await resolve(event);
 
+	// WebSocket upgrade responses (101, used by /api/tunnel/:code/ws) carry
+	// immutable headers in the Workers runtime — mutating them throws.
+	if (response.status === 101) {
+		return response;
+	}
+
 	// User-uploaded files pass through /p/:token with their original
 	// Content-Type — never let browsers sniff their way around it.
 	response.headers.set('X-Content-Type-Options', 'nosniff');
