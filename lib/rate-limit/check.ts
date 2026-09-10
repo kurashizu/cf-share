@@ -22,8 +22,6 @@ export async function checkRateLimit(
     | "DOWNLOAD_LIMIT"
     | "DOWNLOAD_LOOKUP_LIMIT"
     | "ADMIN_LOGIN_LIMIT"
-    | "TUNNEL_CREATE_LIMIT"
-    | "TUNNEL_JOIN_LIMIT"
   >,
   key: string,
 ): Promise<{ success: boolean }> {

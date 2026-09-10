@@ -10,11 +10,6 @@ import type { Handle } from '@sveltejs/kit';
 export const handle: Handle = async ({ event, resolve }) => {
 	const response = await resolve(event);
 
-	// WebSocket upgrade responses (101 Switching Protocols) have immutable
-	// headers — setting anything on them throws. Tunnel connections are the
-	// only route that returns one.
-	if (response.status === 101) return response;
-
 	// User-uploaded files pass through /p/:token with their original
 	// Content-Type — never let browsers sniff their way around it.
 	response.headers.set('X-Content-Type-Options', 'nosniff');

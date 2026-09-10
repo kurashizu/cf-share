@@ -33,13 +33,6 @@
       "database_id": "9ae0b2e1-8840-49d9-a7ba-694462f5ea5f",
     },
   ],
-  // Durable Object — one instance per open clipboard-tunnel code, holds the
-  // live WebSocket pair between the two peers. Class is exported from
-  // custom-worker.ts (the actual deploy entry), see lib/tunnel/room.ts.
-  "durable_objects": {
-    "bindings": [{ "name": "TUNNEL", "class_name": "TunnelRoom" }],
-  },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["TunnelRoom"] }],
   // Rate limits — cf-share specific.
   // Wrangler only allows `period` = 10s or 60s for built-in rate limits.
   "ratelimits": [
@@ -70,22 +63,6 @@
     {
       "name": "DOWNLOAD_LOOKUP_LIMIT",
       "namespace_id": "3005",
-      "simple": {
-        "limit": 30,
-        "period": 60,
-      },
-    },
-    {
-      "name": "TUNNEL_CREATE_LIMIT",
-      "namespace_id": "3007",
-      "simple": {
-        "limit": 20,
-        "period": 60,
-      },
-    },
-    {
-      "name": "TUNNEL_JOIN_LIMIT",
-      "namespace_id": "3008",
       "simple": {
         "limit": 30,
         "period": 60,

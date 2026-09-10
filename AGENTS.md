@@ -21,8 +21,6 @@ Env is read via `event.platform.env` (see `src/app.d.ts` for `App.Platform`).
 |--------|------|---------|
 | GET | `/` | Upload page (drag-and-drop) |
 | GET | `/docs` | API documentation |
-| GET | `/tunnel` | Create or join a peer-to-peer clipboard tunnel |
-| GET | `/tunnel/:code` | Tunnel room UI (live WebSocket relay) |
 | GET | `/admin` | Admin panel (JWT cookie set at `/admin/login`) |
 | GET | `/admin/login` | Admin login form |
 | GET | `/d/:token` | Download page (HTML) |
@@ -43,9 +41,6 @@ Env is read via `event.platform.env` (see `src/app.d.ts` for `App.Platform`).
 | POST | `/api/admin/login` | Submit password, set `cf_admin` JWT cookie |
 | POST | `/api/admin/logout` | Clear `cf_admin` cookie |
 | GET | `/api/admin/me` | Auth check (returns 401 if no/invalid cookie) |
-| POST | `/api/tunnel` | Mint a tunnel code; unjoined tunnels expire after 30 min |
-| GET | `/api/tunnel/:code/ws` | WebSocket upgrade, relayed by the `TunnelRoom` Durable Object |
-| GET | `/api/tunnel/:code/history` | Last up to 10 messages for a tunnel |
 
 ## D1 Database
 
@@ -56,8 +51,6 @@ Schema in `database/schema.sql`.
 | `shares` | Share tokens, S3 keys, TTL, password hash |
 | `upload_quota` | Per-IP daily byte/count totals |
 | `audit_log` | All init/complete/download/expire/delete events |
-| `active_tunnels` | Open tunnel codes — created/joined timestamps, doubles as the code-collision check |
-| `tunnel_messages` | Last 10 messages per tunnel code (LRU-evicted on insert) |
 
 ## S3 Storage
 
@@ -103,12 +96,8 @@ See `lib/share/token.ts`.
 - `lib/s3/` — S3 client, presign, multipart, cleanup, policy, polyfill
 - `lib/share/` — Token gen, password hash (Web Crypto), D1 store, upload/delete grants, `cf_owned` cookie
 - `lib/admin/auth.ts` — JWT sign/verify for admin sessions (`cf_admin` cookie)
-- `lib/tunnel/room.ts` — `TunnelRoom` Durable Object: hibernatable WebSocket relay between two peers, 2 MB inline cap, 30-min unjoined-timeout alarm
-- `lib/tunnel/store.ts` — D1 access for `active_tunnels`/`tunnel_messages` (create/join/destroy, LRU-evicted message append)
-- `src/lib/client/tunnel.ts`, `src/lib/client/tunnel-fallback.ts` — `TunnelConnection` WS wrapper + the single-PUT upload path used when a tunnel message exceeds the 2 MB inline cap
 - `custom-worker.ts` — adapter-cloudflare wrapper: re-exports the generated
-  worker's `fetch` + adds the `scheduled` cron handler (→ `runCleanup`);
-  also re-exports `TunnelRoom` so the `TUNNEL` DO binding resolves at deploy
+  worker's `fetch` + adds the `scheduled` cron handler (→ `runCleanup`)
 - `wrangler.jsonc` — bindings/vars; `main` = adapter build target
   (`build/worker.js`), deploy uses `custom-worker.ts` positionally
 

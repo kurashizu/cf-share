@@ -46,24 +46,3 @@ CREATE TABLE IF NOT EXISTS audit_log (
 );
 CREATE INDEX IF NOT EXISTS idx_audit_ts          ON audit_log(ts DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_share_token ON audit_log(share_token, ts DESC);
-
-CREATE TABLE IF NOT EXISTS active_tunnels (
-    code       TEXT PRIMARY KEY,
-    created_at INTEGER NOT NULL,
-    joined_at  INTEGER
-);
-CREATE INDEX IF NOT EXISTS idx_active_tunnels_created ON active_tunnels(created_at);
-
-CREATE TABLE IF NOT EXISTS tunnel_messages (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    code        TEXT NOT NULL,
-    seq         INTEGER NOT NULL,
-    kind        TEXT NOT NULL,
-    body        TEXT,
-    share_token TEXT,
-    filename    TEXT,
-    size_bytes  INTEGER NOT NULL,
-    sender      TEXT NOT NULL,
-    created_at  INTEGER NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_tunnel_messages_code_seq ON tunnel_messages(code, seq DESC);
