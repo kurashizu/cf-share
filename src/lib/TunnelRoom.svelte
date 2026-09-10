@@ -35,6 +35,13 @@
 	let sendError = $state('');
 	let copiedLink = $state(false);
 	let showInfo = $state(false);
+	let composeRef = $state<HTMLTextAreaElement | null>(null);
+
+	function autoGrow() {
+		if (!composeRef) return;
+		composeRef.style.height = 'auto';
+		composeRef.style.height = `${composeRef.scrollHeight}px`;
+	}
 
 	const hasContent = $derived(items.some((i) => i.kind !== 'presence'));
 
@@ -128,6 +135,7 @@
 		if (!composeText.trim() || !socket) return;
 		socket.sendText(composeText.slice(0, TUNNEL_INLINE_MAX_BYTES));
 		composeText = '';
+		queueMicrotask(autoGrow);
 	}
 
 	async function onFilePicked(e: Event) {
@@ -317,8 +325,11 @@
 				<textarea
 					class="tunnel-compose-input"
 					placeholder="type a message…"
+					rows="1"
+					bind:this={composeRef}
 					bind:value={composeText}
 					disabled={disconnected || connecting}
+					oninput={autoGrow}
 					onkeydown={(e) => {
 						if (e.key === 'Enter' && !e.shiftKey) {
 							e.preventDefault();
