@@ -33,6 +33,14 @@
       "database_id": "9ae0b2e1-8840-49d9-a7ba-694462f5ea5f",
     },
   ],
+  // Durable Object migration history — append-only. TunnelRoom (v1) was the
+  // reverted first-draft tunnel feature; v2 tombstones it since Cloudflare
+  // requires every previously-declared DO class to stay exported or be
+  // explicitly deleted via migration, even after the code is gone.
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["TunnelRoom"] },
+    { "tag": "v2", "deleted_classes": ["TunnelRoom"] },
+  ],
   // Rate limits — cf-share specific.
   // Wrangler only allows `period` = 10s or 60s for built-in rate limits.
   "ratelimits": [
