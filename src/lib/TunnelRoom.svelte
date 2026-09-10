@@ -237,7 +237,7 @@
 			<span class="meta">
 				{#if connecting}connecting…{:else if disconnected}disconnected{:else}{roster.length}/{rosterMax} online{/if}
 			</span>
-			<button class="tunnel-info-toggle" onclick={() => (showInfo = !showInfo)} title="tunnel info">ⓘ</button>
+			<button class="tunnel-info-toggle" onclick={() => (showInfo = !showInfo)} title="tunnel info">[ info ]</button>
 			<button class="tunnel-leave" onclick={leave}>‹ leave</button>
 		</div>
 

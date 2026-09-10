@@ -1719,7 +1719,7 @@ pre code {
    ============================================================================ */
 .tunnel-room {
 	display: grid;
-	grid-template-columns: 1fr 200px;
+	grid-template-columns: 1fr 240px;
 	gap: 18px;
 	align-items: start;
 }
@@ -1863,7 +1863,11 @@ pre code {
 	font-family: inherit;
 	font-size: 14px;
 }
-.tunnel-compose-input:focus { border-color: var(--accent); outline: none; }
+.tunnel-compose-input:focus {
+	border-color: var(--accent);
+	box-shadow: 0 0 0 3px rgba(91, 138, 102, 0.16);
+	outline: none;
+}
 .tunnel-roster {
 	position: sticky;
 	top: 0;
@@ -1882,7 +1886,7 @@ pre code {
 	gap: 8px;
 	font-size: 13px;
 	color: var(--text-dim);
-	padding: 4px 6px;
+	padding: 6px 10px;
 }
 .tunnel-roster-empty {
 	font-size: 12px;
@@ -1894,9 +1898,10 @@ pre code {
 	background: none;
 	border: none;
 	color: var(--text-faint);
-	font-size: 14px;
+	font-family: var(--mono);
+	font-size: 12px;
 	cursor: pointer;
-	padding: 2px 6px;
+	padding: 5px 6px;
 }
 .tunnel-info-toggle:hover { color: var(--accent); }
 .tunnel-leave {
