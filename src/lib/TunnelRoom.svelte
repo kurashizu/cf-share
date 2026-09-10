@@ -36,6 +36,8 @@
 	let copiedLink = $state(false);
 	let showInfo = $state(false);
 
+	const hasContent = $derived(items.some((i) => i.kind !== 'presence'));
+
 	function scrollToBottom() {
 		queueMicrotask(() => {
 			if (listRef) listRef.scrollTop = listRef.scrollHeight;
@@ -259,7 +261,7 @@
 						<span class="tunnel-spinner"></span>
 						connecting to tunnel {code}…
 					</div>
-				{:else if items.length === 0}
+				{:else if !hasContent}
 					<div class="tunnel-empty-hint">
 						it's quiet in here — type a message, paste an image, or drop a file to get started
 					</div>
