@@ -10,6 +10,10 @@
  *   - O (looks like 0)
  *   - U (looks like V, and excluded by Crockford to avoid accidental obscenities)
  *
+ * Share tokens never start with 'Z' — that leading letter is reserved for
+ * clipboard-tunnel codes (see lib/tunnel/), so the two address spaces never
+ * collide and a lookup can route on the first character alone.
+ *
  * Error-tolerant decoding (normalizeToken):
  *   - O, o -> 0
  *   - I, i, L, l -> 1
@@ -27,19 +31,27 @@
 export const CROCKFORD_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 export const TOKEN_LENGTH = 4;
 
+/** Leading character reserved for clipboard-tunnel codes; share tokens never draw it. */
+export const TUNNEL_PREFIX = "Z";
+
 /**
  * Generate a random token of exactly `length` characters from the Crockford Base32 alphabet.
  *
  * 256 % 32 === 0, so `crypto.getRandomValues` has zero modulo bias across 32 characters.
+ * If the first character lands on the reserved tunnel prefix, redraw the
+ * whole token rather than biasing just the first character.
  */
 export function generateToken(length = TOKEN_LENGTH): string {
-	const bytes = new Uint8Array(length);
-	crypto.getRandomValues(bytes);
-	let out = "";
-	for (let i = 0; i < length; i++) {
-		out += CROCKFORD_ALPHABET[bytes[i] & 31];
+	for (;;) {
+		const bytes = new Uint8Array(length);
+		crypto.getRandomValues(bytes);
+		let out = "";
+		for (let i = 0; i < length; i++) {
+			out += CROCKFORD_ALPHABET[bytes[i] & 31];
+		}
+		if (out[0] === TUNNEL_PREFIX) continue;
+		return out;
 	}
-	return out;
 }
 
 /**
