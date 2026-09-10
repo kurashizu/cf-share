@@ -41,8 +41,7 @@ Env is read via `event.platform.env` (see `src/app.d.ts` for `App.Platform`).
 | POST | `/api/admin/login` | Submit password, set `cf_admin` JWT cookie |
 | POST | `/api/admin/logout` | Clear `cf_admin` cookie |
 | GET | `/api/admin/me` | Auth check (returns 401 if no/invalid cookie) |
-| GET | `/tunnel` | Create or join a clipboard tunnel |
-| GET | `/tunnel/:code` | Tunnel room (join form, then the live chat view) |
+| GET | `/tunnel/:code` | Tunnel room (join form, then the live chat view). Creation is a `tunnel` tab inside the home page's Uploader, not a separate route — mirrors the existing `file`/`text` tabs |
 | POST | `/api/tunnel` | Mint a `Z`-prefixed tunnel code; optional password |
 | GET | `/api/tunnel/:code/ws` | WebSocket upgrade, forwarded into `TunnelRoomV2` |
 | GET/POST | `/api/tunnel/:code/file/:seq` | Redirect to a presigned S3 URL for an inline file message; POST for password-protected tunnels |
@@ -142,7 +141,8 @@ time over a Durable-Object-relayed WebSocket.
 - `lib/share/` — Token gen, password hash (Web Crypto), D1 store, upload/delete grants, `cf_owned` cookie
 - `lib/admin/auth.ts` — JWT sign/verify for admin sessions (`cf_admin` cookie)
 - `lib/tunnel/` — `room.ts` (the `TunnelRoomV2` Durable Object), `code.ts` (Z-prefixed code gen), `cleanup.ts` (unjoined-tunnel D1 pruning)
-- `src/routes/tunnel/+page.svelte`, `src/routes/tunnel/[code]/+page.svelte` — create/join and the live room UI
+- `src/lib/Uploader.svelte` — also hosts the `tunnel` tab (create + password), exposes `switchToTunnel()` for the home page's quick_facts link
+- `src/routes/tunnel/[code]/+page.svelte` — join form + the live room UI
 - `src/lib/client/tunnel-socket.ts` — client WebSocket wrapper (heartbeat, message types)
 - `src/lib/client/avatar.ts` — hash-derived per-name avatar color, no network/storage
 - `custom-worker.ts` — adapter-cloudflare wrapper: re-exports the generated

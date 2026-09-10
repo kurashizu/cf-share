@@ -329,8 +329,10 @@ curl -fsS "${APP_URL}/p/AB3F"`}</code></pre>
 			image, a file — shows up for everyone else instantly, over a WebSocket.
 			Tunnel codes always start with <code>Z</code> (share codes never do), so
 			the same 4-char input box on the home page can tell the two apart. Create
-			one at <code>/tunnel</code>, optionally with a password; the code and an
-			optional display name are all anyone needs to join at <code>/tunnel/:code</code>.
+			one from the <code>tunnel</code> tab in the home page's send panel,
+			optionally with a password; the code and an optional display name are
+			all anyone needs to join at <code>/tunnel/:code</code> — pasting the
+			code into the home page's code box also works.
 		</p>
 		<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-3">
 			Nothing is written to the database for message content — the last 10

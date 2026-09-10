@@ -54,8 +54,7 @@ to short-lived presigned S3 URLs; file bytes do not pass through the Worker.
 | POST | `/api/admin/login` | `+server.ts` | Submit admin password, set `cf_admin` JWT cookie (rate-limited 5/min/IP) |
 | POST | `/api/admin/logout` | `+server.ts` | Clear the `cf_admin` cookie |
 | GET/POST | `/api/cron/cleanup` | `+server.ts` | Manual cleanup trigger (requires `CRON_SECRET`) |
-| GET | `/tunnel` | `src/routes/tunnel/+page.svelte` | Create or join a clipboard tunnel |
-| GET | `/tunnel/:code` | `src/routes/tunnel/[code]/+page.svelte` | Tunnel room — join form, then the live chat view |
+| GET | `/tunnel/:code` | `src/routes/tunnel/[code]/+page.svelte` | Tunnel room — join form, then the live chat view. Creation happens on `/` itself (the `tunnel` tab in the send panel); joining an existing code also works from the home page's code-entry box |
 | POST | `/api/tunnel` | `+server.ts` | Mint a `Z`-prefixed tunnel code; optional password |
 | GET | `/api/tunnel/:code/ws` | `+server.ts` | WebSocket upgrade, forwarded into the tunnel's Durable Object |
 | GET/POST | `/api/tunnel/:code/file/:seq` | `+server.ts` | Redirect to a presigned S3 URL for an inline file message; POST body carries the password for protected tunnels (never a query string) |

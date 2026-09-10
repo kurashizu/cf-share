@@ -105,6 +105,13 @@
 
 	const fetchOpts = $derived<RequestInit>(omitCredentials ? { credentials: 'omit' } : {});
 
+	let rootRef = $state<HTMLDivElement | null>(null);
+
+	export function switchToTunnel() {
+		mode = 'tunnel';
+		rootRef?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+	}
+
 	let active = $state<ActiveUpload | null>(null);
 	let completed = $state<CompletedUpload | null>(null);
 	let ttl = $state(86400); // default 24h
@@ -113,9 +120,40 @@
 	let isDragActive = $state(false);
 	let windowDragActive = $state(false);
 	let pendingResumes = $state<PendingUploadSummary[]>([]);
-	let mode = $state<'file' | 'text'>('file');
+	let mode = $state<'file' | 'text' | 'tunnel'>('file');
 	let text = $state('');
 	let textareaRef = $state<HTMLTextAreaElement | null>(null);
+
+	let tunnelName = $state('');
+	let tunnelPassword = $state('');
+	let tunnelCreating = $state(false);
+	let tunnelError = $state('');
+
+	async function createTunnel() {
+		if (tunnelCreating) return;
+		tunnelCreating = true;
+		tunnelError = '';
+		try {
+			const r = await fetch('/api/tunnel', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ password: tunnelPassword || undefined })
+			});
+			if (!r.ok) {
+				const body = (await r.json().catch(() => ({}))) as { error?: string };
+				tunnelError = body.error ?? 'Could not create tunnel';
+				return;
+			}
+			const data = (await r.json()) as { code: string };
+			const params = new URLSearchParams();
+			if (tunnelName.trim()) params.set('name', tunnelName.trim());
+			await goto(`/tunnel/${data.code}${params.toString() ? `?${params}` : ''}`);
+		} catch {
+			tunnelError = 'Network error — try again';
+		} finally {
+			tunnelCreating = false;
+		}
+	}
 
 	const latestPending = $derived(pendingResumes.length > 0 ? pendingResumes[0] : null);
 	const busy = $derived(active !== null && active.state.kind !== 'error');
@@ -669,7 +707,7 @@
 	}
 </script>
 
-<div class="panel panel-stretch">
+<div class="panel panel-stretch" bind:this={rootRef}>
 	<div class="panel-head">
 		<span class="tag">›</span> send
 		<span class="meta">
@@ -677,8 +715,10 @@
 				max {maxSize >= 1024 * 1024 * 1024
 					? `${Math.round(maxSize / (1024 * 1024 * 1024))} GB`
 					: `${Math.round(maxSize / (1024 * 1024))} MB`}
-			{:else}
+			{:else if mode === 'text'}
 				text · inline up to {Math.round(TEXT_MAX_BYTES / (1024 * 1024))} MB
+			{:else}
+				live · up to 4 people
 			{/if}
 		</span>
 	</div>
@@ -737,11 +777,15 @@
 			>clipboard</button>
 			<button
 				type="button"
-				class="mode-tab mode-tab-tunnel"
-				onclick={() => goto('/tunnel')}
+				role="tab"
+				aria-selected={mode === 'tunnel'}
+				class="mode-tab mode-tab-tunnel {mode === 'tunnel' ? 'active' : ''}"
+				disabled={busy}
+				onclick={() => (mode = 'tunnel')}
 			>tunnel</button>
 		</div>
 
+		{#if mode !== 'tunnel'}
 		<div class="controls">
 			<div class="field">
 				<label for="ttl-select">expires in</label>
@@ -769,8 +813,42 @@
 				/>
 			</div>
 		</div>
+		{/if}
 
-		{#if mode === 'text'}
+		{#if mode === 'tunnel'}
+		<div class="controls">
+			<div class="field">
+				<label for="tunnel-name-input">your display name <span class="optional">· optional</span></label>
+				<input
+					bind:value={tunnelName}
+					id="tunnel-name-input"
+					class="input"
+					type="text"
+					maxlength="32"
+					placeholder="anon"
+					disabled={tunnelCreating}
+				/>
+			</div>
+
+			<div class="field">
+				<label for="tunnel-password-input">password <span class="optional">· optional</span></label>
+				<input
+					bind:value={tunnelPassword}
+					id="tunnel-password-input"
+					class="input"
+					type="password"
+					placeholder="no password"
+					disabled={tunnelCreating}
+				/>
+			</div>
+		</div>
+		<button class="btn primary" disabled={tunnelCreating} onclick={createTunnel}>
+			{tunnelCreating ? 'Creating…' : 'Create tunnel'}
+		</button>
+		{#if tunnelError}
+			<p class="code-hint error" style="margin-top:10px;">{tunnelError}</p>
+		{/if}
+		{:else if mode === 'text'}
 		<div class="text-compose">
 			<textarea
 				bind:this={textareaRef}

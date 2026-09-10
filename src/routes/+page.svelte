@@ -11,6 +11,7 @@
 	import SettingsPanel from '$lib/SettingsPanel.svelte';
 
 	let myShares: MyShares | undefined = undefined;
+	let uploader: Uploader | undefined = undefined;
 	let logoSpinning = $state(false);
 
 	function spinLogo() {
@@ -49,7 +50,7 @@
 
 	<div class="home-grid">
 		<section class="home-send">
-			<Uploader globalPaste onUploaded={() => myShares?.refresh()} />
+			<Uploader bind:this={uploader} globalPaste onUploaded={() => myShares?.refresh()} />
 		</section>
 
 		<aside class="home-side">
@@ -70,7 +71,7 @@
 						<dt>privacy</dt>
 						<dd>optional password; sensitive text is best shared with one</dd>
 						<dt>live tunnel</dt>
-						<dd>need back-and-forth instead of a one-way link? open a <a href="/tunnel">clipboard tunnel</a> — up to 4 people, real time</dd>
+						<dd>need back-and-forth instead of a one-way link? <button type="button" class="inline-link" onclick={() => uploader?.switchToTunnel()}>open a clipboard tunnel</button> — up to 4 people, real time</dd>
 					</dl>
 				</div>
 			</div>
