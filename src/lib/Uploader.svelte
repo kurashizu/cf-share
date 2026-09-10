@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { goto } from '$app/navigation';
 	import FileItem, { type UploadState } from './FileItem.svelte';
 	import ResultPanel from './ResultPanel.svelte';
+	import TunnelResultPanel from './TunnelResultPanel.svelte';
 	import { DEFAULT_PROXY_MAX_FILE_SIZE } from '@/lib/config/proxy';
 	import {
 		fileFingerprint,
@@ -92,7 +92,8 @@
 		ttlPresets = ANON_TTL_PRESETS,
 		omitCredentials = false,
 		globalPaste = false,
-		onUploaded = undefined
+		onUploaded = undefined,
+		onTunnelCreated = undefined
 	}: {
 		extraHeaders?: Record<string, string>;
 		maxSize?: number;
@@ -101,6 +102,8 @@
 		globalPaste?: boolean;
 		/** Called after a share is minted (fresh token in the `cf_owned` cookie). */
 		onUploaded?: () => void;
+		/** Called after a tunnel is created; parent switches the page into room view. */
+		onTunnelCreated?: (code: string, name: string) => void;
 	} = $props();
 
 	const fetchOpts = $derived<RequestInit>(omitCredentials ? { credentials: 'omit' } : {});
@@ -128,6 +131,7 @@
 	let tunnelPassword = $state('');
 	let tunnelCreating = $state(false);
 	let tunnelError = $state('');
+	let tunnelResult = $state<{ code: string; hasPassword: boolean } | null>(null);
 
 	async function createTunnel() {
 		if (tunnelCreating) return;
@@ -144,10 +148,8 @@
 				tunnelError = body.error ?? 'Could not create tunnel';
 				return;
 			}
-			const data = (await r.json()) as { code: string };
-			const params = new URLSearchParams();
-			if (tunnelName.trim()) params.set('name', tunnelName.trim());
-			await goto(`/tunnel/${data.code}${params.toString() ? `?${params}` : ''}`);
+			const data = (await r.json()) as { code: string; hasPassword: boolean };
+			tunnelResult = { code: data.code, hasPassword: data.hasPassword };
 		} catch {
 			tunnelError = 'Network error — try again';
 		} finally {
@@ -816,6 +818,13 @@
 		{/if}
 
 		{#if mode === 'tunnel'}
+		{#if tunnelResult}
+			<TunnelResultPanel
+				code={tunnelResult.code}
+				hasPassword={tunnelResult.hasPassword}
+				onEnter={() => onTunnelCreated?.(tunnelResult!.code, tunnelName.trim())}
+			/>
+		{:else}
 		<div class="controls">
 			<div class="field">
 				<label for="tunnel-name-input">your display name <span class="optional">· optional</span></label>
@@ -847,6 +856,7 @@
 		</button>
 		{#if tunnelError}
 			<p class="code-hint error" style="margin-top:10px;">{tunnelError}</p>
+		{/if}
 		{/if}
 		{:else if mode === 'text'}
 		<div class="text-compose">

@@ -1,18 +1,23 @@
-<svelte:head>
-	<title>KRSZ Share — tunnel {code}</title>
-</svelte:head>
-
 <script lang="ts">
-	import { page } from '$app/stores';
 	import { onDestroy } from 'svelte';
 	import { normalizeTunnelCode } from '@/lib/tunnel/code';
 	import { TunnelSocket, TUNNEL_INLINE_MAX_BYTES, type IncomingMessage, type HistoryItem } from '$lib/client/tunnel-socket';
 	import { avatarColor, avatarLetter } from '$lib/client/avatar';
 
-	const rawCode = $page.params.code ?? '';
-	const code = normalizeTunnelCode(rawCode) ?? rawCode.toUpperCase();
+	let {
+		rawCode,
+		initialName = '',
+		onLeave
+	}: {
+		rawCode: string;
+		initialName?: string;
+		/** Called when the user leaves the room — parent should clear ?tunnel= and restore the normal layout. */
+		onLeave: () => void;
+	} = $props();
 
-	let displayName = $state($page.url.searchParams.get('name') ?? '');
+	const code = $derived(normalizeTunnelCode(rawCode) ?? rawCode.toUpperCase());
+
+	let displayName = $state(initialName);
 	let password = $state('');
 	let joining = $state(false);
 	let joined = $state(false);
@@ -202,126 +207,137 @@
 		return `/api/tunnel/${code}/file/${item.seq}`;
 	}
 
+	function leave() {
+		socket?.close();
+		socket = null;
+		joined = false;
+		onLeave();
+	}
+
 	onDestroy(() => socket?.close());
 </script>
 
-<main class="wrap tunnel-wrap">
-	{#if !joined}
-		<div class="hero">
-			<div>
-				<h1>Tunnel {code}</h1>
-				<p>Enter a display name{needsPassword ? ' and the tunnel password' : ''} to join.</p>
-			</div>
+<svelte:head>
+	<title>KRSZ Share — tunnel {code}</title>
+</svelte:head>
+
+{#if !joined}
+	<div class="hero">
+		<div>
+			<h1>Tunnel {code}</h1>
+			<p>Enter a display name{needsPassword ? ' and the tunnel password' : ''} to join.</p>
 		</div>
-		<div class="panel" style="max-width:420px;">
+	</div>
+	<div class="panel" style="max-width:420px;">
+		<div class="panel-head">
+			<span class="tag">›</span> join tunnel
+			<button class="mode-tab" style="margin-left:auto;" onclick={onLeave}>‹ back</button>
+		</div>
+		<div class="panel-body">
+			<div class="controls">
+				<div class="field">
+					<label for="rn">display name</label>
+					<input id="rn" class="input" type="text" maxlength="32" placeholder="anon" bind:value={displayName} disabled={joining} onkeydown={(e) => e.key === 'Enter' && join()} />
+				</div>
+				<div class="field">
+					<label for="rp">password <span class="optional">· if the tunnel has one</span></label>
+					<input id="rp" class="input" type="password" placeholder="no password" bind:value={password} disabled={joining} onkeydown={(e) => e.key === 'Enter' && join()} />
+				</div>
+			</div>
+			<button class="btn primary" disabled={joining} onclick={join}>
+				{joining ? 'Joining…' : 'Join tunnel'}
+			</button>
+			{#if joinError}
+				<p class="code-hint error" style="margin-top:10px;">{joinError}</p>
+			{/if}
+		</div>
+	</div>
+{:else}
+	<div class="tunnel-room">
+		<div class="tunnel-main panel">
 			<div class="panel-head">
-				<span class="tag">›</span> join tunnel
+				<span class="tag">›</span> tunnel {code}
+				<span class="meta">{roster.length}/{rosterMax} online</span>
+				<button class="mode-tab" style="margin-left:10px;" onclick={leave}>leave</button>
 			</div>
-			<div class="panel-body">
-				<div class="controls">
-					<div class="field">
-						<label for="rn">display name</label>
-						<input id="rn" class="input" type="text" maxlength="32" placeholder="anon" bind:value={displayName} disabled={joining} onkeydown={(e) => e.key === 'Enter' && join()} />
-					</div>
-					<div class="field">
-						<label for="rp">password <span class="optional">· if the tunnel has one</span></label>
-						<input id="rp" class="input" type="password" placeholder="no password" bind:value={password} disabled={joining} onkeydown={(e) => e.key === 'Enter' && join()} />
-					</div>
-				</div>
-				<button class="btn primary" disabled={joining} onclick={join}>
-					{joining ? 'Joining…' : 'Join tunnel'}
-				</button>
-				{#if joinError}
-					<p class="code-hint error" style="margin-top:10px;">{joinError}</p>
-				{/if}
-			</div>
-		</div>
-	{:else}
-		<div class="tunnel-room">
-			<div class="tunnel-main panel">
-				<div class="panel-head">
-					<span class="tag">›</span> tunnel {code}
-					<span class="meta">{roster.length}/{rosterMax} online</span>
-				</div>
-				<div class="tunnel-messages" bind:this={listRef}>
-					{#each items as item (item.seq + '-' + item.createdAt)}
-						{#if item.kind === 'presence'}
-							<div class="tunnel-presence">· · {item.from} {item.presenceEvent === 'joined' ? 'joined' : 'left'} the tunnel · ·</div>
-						{:else}
-							<div class="tunnel-msg {item.fromId === myId ? 'mine' : ''}">
-								<div class="tunnel-msg-avatar" style="background:{avatarColor(item.from)}">{avatarLetter(item.from)}</div>
-								<div class="tunnel-msg-body">
-									<div class="tunnel-msg-name">{item.from}</div>
-									{#if item.kind === 'text'}
-										<div class="tunnel-bubble">{item.body}</div>
-									{:else if item.kind === 'file' && isImage(item.contentType)}
-										<div class="tunnel-bubble tunnel-bubble-file">
-											<img src={fileUrl(item)} alt={item.filename} class="tunnel-img" />
-											<div class="tunnel-file-meta">{item.filename} · {formatBytes(item.sizeBytes ?? 0)}</div>
-										</div>
-									{:else if item.kind === 'file'}
-										<a class="tunnel-bubble tunnel-file-card" href={fileUrl(item)} download={item.filename}>
-											<span class="tunnel-file-icon">⬇</span>
-											<span class="tunnel-file-name">{item.filename}</span>
-											<span class="tunnel-file-size">{formatBytes(item.sizeBytes ?? 0)}</span>
-										</a>
-									{:else if item.kind === 'share-link'}
-										<a class="tunnel-bubble tunnel-file-card" href={item.shareUrl} target="_blank" rel="noopener">
-											<span class="tunnel-file-icon">🔗</span>
-											<span class="tunnel-file-name">{item.filename}</span>
-											<span class="tunnel-file-size">{formatBytes(item.sizeBytes ?? 0)}</span>
-										</a>
-									{/if}
-									<div class="tunnel-msg-time">{formatTime(item.createdAt)}</div>
-								</div>
+			<div class="tunnel-messages" bind:this={listRef}>
+				{#each items as item (item.seq + '-' + item.createdAt)}
+					{#if item.kind === 'presence'}
+						<div class="tunnel-presence">· · {item.from} {item.presenceEvent === 'joined' ? 'joined' : 'left'} the tunnel · ·</div>
+					{:else}
+						<div class="tunnel-msg {item.fromId === myId ? 'mine' : ''}">
+							<div class="tunnel-msg-avatar" style="background:{avatarColor(item.from)}">{avatarLetter(item.from)}</div>
+							<div class="tunnel-msg-body">
+								<div class="tunnel-msg-name">{item.from}</div>
+								{#if item.kind === 'text'}
+									<div class="tunnel-bubble">{item.body}</div>
+								{:else if item.kind === 'file' && isImage(item.contentType)}
+									<div class="tunnel-bubble tunnel-bubble-file">
+										<img src={fileUrl(item)} alt={item.filename} class="tunnel-img" />
+										<div class="tunnel-file-meta">{item.filename} · {formatBytes(item.sizeBytes ?? 0)}</div>
+									</div>
+								{:else if item.kind === 'file'}
+									<a class="tunnel-bubble tunnel-file-card" href={fileUrl(item)} download={item.filename}>
+										<span class="tunnel-file-icon">⬇</span>
+										<span class="tunnel-file-name">{item.filename}</span>
+										<span class="tunnel-file-size">{formatBytes(item.sizeBytes ?? 0)}</span>
+									</a>
+								{:else if item.kind === 'share-link'}
+									<a class="tunnel-bubble tunnel-file-card" href={item.shareUrl} target="_blank" rel="noopener">
+										<span class="tunnel-file-icon">🔗</span>
+										<span class="tunnel-file-name">{item.filename}</span>
+										<span class="tunnel-file-size">{formatBytes(item.sizeBytes ?? 0)}</span>
+									</a>
+								{/if}
+								<div class="tunnel-msg-time">{formatTime(item.createdAt)}</div>
 							</div>
-						{/if}
-					{/each}
-				</div>
-				{#if disconnected}
-					<div class="tunnel-disconnected">Disconnected. <button class="btn sm outline" onclick={join}>Reconnect</button></div>
-				{/if}
-				{#if sendError}
-					<div class="tunnel-send-error">{sendError}</div>
-				{/if}
-				<div class="tunnel-compose">
-					<input
-						class="hidden"
-						type="file"
-						bind:this={fileInputRef}
-						onchange={onFilePicked}
-					/>
-					<button class="tunnel-attach" onclick={() => fileInputRef?.click()} title="send a file" aria-label="send a file">📎</button>
-					<textarea
-						class="tunnel-compose-input"
-						placeholder="type a message…"
-						bind:value={composeText}
-						disabled={disconnected}
-						onkeydown={(e) => {
-							if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-								e.preventDefault();
-								sendText();
-							}
-						}}
-					></textarea>
-					<button class="btn primary" disabled={disconnected || !composeText.trim()} onclick={sendText}>Send</button>
-				</div>
+						</div>
+					{/if}
+				{/each}
 			</div>
-			<aside class="tunnel-roster panel">
-				<div class="panel-head">
-					<span class="tag">›</span> online
-				</div>
-				<div class="panel-body panel-body-flush">
-					<ul class="tunnel-roster-list">
-						{#each roster as name (name)}
-							<li class="tunnel-roster-item">
-								<span class="tunnel-msg-avatar sm" style="background:{avatarColor(name)}">{avatarLetter(name)}</span>
-								{name}
-							</li>
-						{/each}
-					</ul>
-				</div>
-			</aside>
+			{#if disconnected}
+				<div class="tunnel-disconnected">Disconnected. <button class="btn sm outline" onclick={join}>Reconnect</button></div>
+			{/if}
+			{#if sendError}
+				<div class="tunnel-send-error">{sendError}</div>
+			{/if}
+			<div class="tunnel-compose">
+				<input
+					class="hidden"
+					type="file"
+					bind:this={fileInputRef}
+					onchange={onFilePicked}
+				/>
+				<button class="tunnel-attach" onclick={() => fileInputRef?.click()} title="send a file" aria-label="send a file">📎</button>
+				<textarea
+					class="tunnel-compose-input"
+					placeholder="type a message…"
+					bind:value={composeText}
+					disabled={disconnected}
+					onkeydown={(e) => {
+						if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+							e.preventDefault();
+							sendText();
+						}
+					}}
+				></textarea>
+				<button class="btn primary" disabled={disconnected || !composeText.trim()} onclick={sendText}>Send</button>
+			</div>
 		</div>
-	{/if}
-</main>
+		<aside class="tunnel-roster panel">
+			<div class="panel-head">
+				<span class="tag">›</span> online
+			</div>
+			<div class="panel-body panel-body-flush">
+				<ul class="tunnel-roster-list">
+					{#each roster as name (name)}
+						<li class="tunnel-roster-item">
+							<span class="tunnel-msg-avatar sm" style="background:{avatarColor(name)}">{avatarLetter(name)}</span>
+							{name}
+						</li>
+					{/each}
+				</ul>
+			</div>
+		</aside>
+	</div>
+{/if}

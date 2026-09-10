@@ -117,7 +117,7 @@
 
 		const tunnelCode = normalizeTunnelCode(code);
 		if (tunnelCode) {
-			await goto(`/tunnel/${tunnelCode}`);
+			await goto(`/?tunnel=${tunnelCode}`);
 			return;
 		}
 
