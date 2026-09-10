@@ -283,13 +283,13 @@
 									</div>
 								{:else if item.kind === 'file'}
 									<a class="tunnel-bubble tunnel-file-card" href={fileUrl(item)} download={item.filename}>
-										<span class="tunnel-file-icon">⬇</span>
+										<span class="tunnel-file-icon">[ file ]</span>
 										<span class="tunnel-file-name">{item.filename}</span>
 										<span class="tunnel-file-size">{formatBytes(item.sizeBytes ?? 0)}</span>
 									</a>
 								{:else if item.kind === 'share-link'}
 									<a class="tunnel-bubble tunnel-file-card" href={item.shareUrl} target="_blank" rel="noopener">
-										<span class="tunnel-file-icon">🔗</span>
+										<span class="tunnel-file-icon">[ link ]</span>
 										<span class="tunnel-file-name">{item.filename}</span>
 										<span class="tunnel-file-size">{formatBytes(item.sizeBytes ?? 0)}</span>
 									</a>
@@ -313,14 +313,14 @@
 					bind:this={fileInputRef}
 					onchange={onFilePicked}
 				/>
-				<button class="tunnel-attach" onclick={() => fileInputRef?.click()} title="send a file" aria-label="send a file">📎</button>
+				<button class="tunnel-attach" onclick={() => fileInputRef?.click()} title="send a file" aria-label="send a file">+</button>
 				<textarea
 					class="tunnel-compose-input"
 					placeholder="type a message…"
 					bind:value={composeText}
 					disabled={disconnected || connecting}
 					onkeydown={(e) => {
-						if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+						if (e.key === 'Enter' && !e.shiftKey) {
 							e.preventDefault();
 							sendText();
 						}

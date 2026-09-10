@@ -123,7 +123,7 @@
 						>{s.filename}</a>
 						<span class="my-shares-meta">
 							{formatBytes(s.sizeBytes)} · expires {formatExpiry(s.expiresAt)}{s.hasPassword
-								? ' · 🔒'
+								? ' · locked'
 								: ''}
 						</span>
 						<button
