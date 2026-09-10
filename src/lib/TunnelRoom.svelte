@@ -1,28 +1,27 @@
 <script lang="ts">
-	import { onDestroy } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
 	import { normalizeTunnelCode } from '@/lib/tunnel/code';
 	import { TunnelSocket, TUNNEL_INLINE_MAX_BYTES, type IncomingMessage, type HistoryItem } from '$lib/client/tunnel-socket';
 	import { avatarColor, avatarLetter } from '$lib/client/avatar';
 
 	let {
 		rawCode,
-		initialName = '',
+		displayName,
+		password,
 		onLeave
 	}: {
 		rawCode: string;
-		initialName?: string;
-		/** Called when the user leaves the room — parent should clear ?tunnel= and restore the normal layout. */
+		displayName: string;
+		password?: string;
+		/** Called when the user leaves the room — parent restores the normal layout. */
 		onLeave: () => void;
 	} = $props();
 
 	const code = $derived(normalizeTunnelCode(rawCode) ?? rawCode.toUpperCase());
+	const joinUrl = $derived(typeof window !== 'undefined' ? `${window.location.origin}/?tunnel=${code}` : '');
 
-	let displayName = $state(initialName);
-	let password = $state('');
-	let joining = $state(false);
-	let joined = $state(false);
+	let connecting = $state(true);
 	let joinError = $state('');
-	let needsPassword = $state(false);
 
 	let socket: TunnelSocket | null = null;
 	let myId = $state('');
@@ -34,6 +33,8 @@
 	let fileInputRef = $state<HTMLInputElement | null>(null);
 	let listRef = $state<HTMLDivElement | null>(null);
 	let sendError = $state('');
+	let copiedLink = $state(false);
+	let showInfo = $state(false);
 
 	function scrollToBottom() {
 		queueMicrotask(() => {
@@ -105,24 +106,20 @@
 		};
 	}
 
-	async function join() {
-		if (joining) return;
-		joining = true;
+	async function connect() {
+		connecting = true;
 		joinError = '';
+		disconnected = false;
 		const name = displayName.trim() || 'anon';
 		socket = new TunnelSocket(code, name, password || undefined, onIncoming, (reason: { code: number; expected: boolean }) => {
-			joined = false;
 			disconnected = !reason.expected;
 			if (!reason.expected) joinError = 'Disconnected — the tunnel may have closed.';
 		});
 		const ok = await socket.connect();
-		if (ok) {
-			joined = true;
-		} else {
+		connecting = false;
+		if (!ok) {
 			joinError = 'Could not join — wrong password, or the tunnel is full/expired.';
-			needsPassword = true;
 		}
-		joining = false;
 	}
 
 	function sendText() {
@@ -207,13 +204,23 @@
 		return `/api/tunnel/${code}/file/${item.seq}`;
 	}
 
+	async function copyLink() {
+		try {
+			await navigator.clipboard.writeText(joinUrl);
+		} catch {
+			// ignore
+		}
+		copiedLink = true;
+		setTimeout(() => (copiedLink = false), 1500);
+	}
+
 	function leave() {
 		socket?.close();
 		socket = null;
-		joined = false;
 		onLeave();
 	}
 
+	onMount(connect);
 	onDestroy(() => socket?.close());
 </script>
 
@@ -221,46 +228,42 @@
 	<title>KRSZ Share — tunnel {code}</title>
 </svelte:head>
 
-{#if !joined}
-	<div class="hero">
-		<div>
-			<h1>Tunnel {code}</h1>
-			<p>Enter a display name{needsPassword ? ' and the tunnel password' : ''} to join.</p>
-		</div>
-	</div>
-	<div class="panel" style="max-width:420px;">
+<div class="tunnel-room">
+	<div class="tunnel-main panel">
 		<div class="panel-head">
-			<span class="tag">›</span> join tunnel
-			<button class="mode-tab" style="margin-left:auto;" onclick={onLeave}>‹ back</button>
+			<span class="tag">›</span> tunnel {code}
+			<span class="meta">
+				{#if connecting}connecting…{:else if disconnected}disconnected{:else}{roster.length}/{rosterMax} online{/if}
+			</span>
+			<button class="tunnel-info-toggle" onclick={() => (showInfo = !showInfo)} title="tunnel info">ⓘ</button>
+			<button class="tunnel-leave" onclick={leave}>‹ leave</button>
 		</div>
-		<div class="panel-body">
-			<div class="controls">
-				<div class="field">
-					<label for="rn">display name</label>
-					<input id="rn" class="input" type="text" maxlength="32" placeholder="anon" bind:value={displayName} disabled={joining} onkeydown={(e) => e.key === 'Enter' && join()} />
-				</div>
-				<div class="field">
-					<label for="rp">password <span class="optional">· if the tunnel has one</span></label>
-					<input id="rp" class="input" type="password" placeholder="no password" bind:value={password} disabled={joining} onkeydown={(e) => e.key === 'Enter' && join()} />
-				</div>
+
+		{#if showInfo}
+			<div class="tunnel-info-banner">
+				<span class="tunnel-info-code">{code}</span>
+				<span class="tunnel-info-url">{joinUrl}</span>
+				<button class="btn sm outline" onclick={copyLink}>{copiedLink ? 'Copied ✓' : 'Copy link'}</button>
 			</div>
-			<button class="btn primary" disabled={joining} onclick={join}>
-				{joining ? 'Joining…' : 'Join tunnel'}
-			</button>
-			{#if joinError}
-				<p class="code-hint error" style="margin-top:10px;">{joinError}</p>
-			{/if}
-		</div>
-	</div>
-{:else}
-	<div class="tunnel-room">
-		<div class="tunnel-main panel">
-			<div class="panel-head">
-				<span class="tag">›</span> tunnel {code}
-				<span class="meta">{roster.length}/{rosterMax} online</span>
-				<button class="mode-tab" style="margin-left:10px;" onclick={leave}>leave</button>
+		{/if}
+
+		{#if joinError}
+			<div class="tunnel-join-error">
+				<p>{joinError}</p>
+				<button class="btn sm primary" onclick={connect}>Retry</button>
 			</div>
+		{:else}
 			<div class="tunnel-messages" bind:this={listRef}>
+				{#if connecting}
+					<div class="tunnel-connecting">
+						<span class="tunnel-spinner"></span>
+						connecting to tunnel {code}…
+					</div>
+				{:else if items.length === 0}
+					<div class="tunnel-empty-hint">
+						it's quiet in here — type a message, paste an image, or drop a file to get started
+					</div>
+				{/if}
 				{#each items as item (item.seq + '-' + item.createdAt)}
 					{#if item.kind === 'presence'}
 						<div class="tunnel-presence">· · {item.from} {item.presenceEvent === 'joined' ? 'joined' : 'left'} the tunnel · ·</div>
@@ -296,7 +299,7 @@
 				{/each}
 			</div>
 			{#if disconnected}
-				<div class="tunnel-disconnected">Disconnected. <button class="btn sm outline" onclick={join}>Reconnect</button></div>
+				<div class="tunnel-disconnected">Disconnected. <button class="btn sm outline" onclick={connect}>Reconnect</button></div>
 			{/if}
 			{#if sendError}
 				<div class="tunnel-send-error">{sendError}</div>
@@ -313,7 +316,7 @@
 					class="tunnel-compose-input"
 					placeholder="type a message…"
 					bind:value={composeText}
-					disabled={disconnected}
+					disabled={disconnected || connecting}
 					onkeydown={(e) => {
 						if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
 							e.preventDefault();
@@ -321,23 +324,26 @@
 						}
 					}}
 				></textarea>
-				<button class="btn primary" disabled={disconnected || !composeText.trim()} onclick={sendText}>Send</button>
+				<button class="btn primary" disabled={disconnected || connecting || !composeText.trim()} onclick={sendText}>Send</button>
 			</div>
-		</div>
-		<aside class="tunnel-roster panel">
-			<div class="panel-head">
-				<span class="tag">›</span> online
-			</div>
-			<div class="panel-body panel-body-flush">
-				<ul class="tunnel-roster-list">
-					{#each roster as name (name)}
-						<li class="tunnel-roster-item">
-							<span class="tunnel-msg-avatar sm" style="background:{avatarColor(name)}">{avatarLetter(name)}</span>
-							{name}
-						</li>
-					{/each}
-				</ul>
-			</div>
-		</aside>
+		{/if}
 	</div>
-{/if}
+	<aside class="tunnel-roster panel">
+		<div class="panel-head">
+			<span class="tag">›</span> online
+		</div>
+		<div class="panel-body panel-body-flush">
+			<ul class="tunnel-roster-list">
+				{#each roster as name (name)}
+					<li class="tunnel-roster-item">
+						<span class="tunnel-msg-avatar sm" style="background:{avatarColor(name)}">{avatarLetter(name)}</span>
+						{name}
+					</li>
+				{/each}
+				{#if roster.length === 0}
+					<li class="tunnel-roster-empty">no one yet</li>
+				{/if}
+			</ul>
+		</div>
+	</aside>
+</div>

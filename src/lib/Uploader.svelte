@@ -93,7 +93,9 @@
 		omitCredentials = false,
 		globalPaste = false,
 		onUploaded = undefined,
-		onTunnelCreated = undefined
+		onTunnelCreated = undefined,
+		joinCode = null,
+		onTunnelJoin = undefined
 	}: {
 		extraHeaders?: Record<string, string>;
 		maxSize?: number;
@@ -102,8 +104,12 @@
 		globalPaste?: boolean;
 		/** Called after a share is minted (fresh token in the `cf_owned` cookie). */
 		onUploaded?: () => void;
-		/** Called after a tunnel is created; parent switches the page into room view. */
-		onTunnelCreated?: (code: string, name: string) => void;
+		/** Called after a tunnel is created; parent shows the result panel. */
+		onTunnelCreated?: (code: string, name: string, password: string) => void;
+		/** Set by the parent (from ?tunnel=) to switch the tunnel tab into "join" mode. */
+		joinCode?: string | null;
+		/** Called once the user submits the join form; parent starts the room connection. */
+		onTunnelJoin?: (code: string, name: string, password: string) => void;
 	} = $props();
 
 	const fetchOpts = $derived<RequestInit>(omitCredentials ? { credentials: 'omit' } : {});
@@ -114,6 +120,10 @@
 		mode = 'tunnel';
 		rootRef?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 	}
+
+	$effect(() => {
+		if (joinCode) mode = 'tunnel';
+	});
 
 	let active = $state<ActiveUpload | null>(null);
 	let completed = $state<CompletedUpload | null>(null);
@@ -155,6 +165,11 @@
 		} finally {
 			tunnelCreating = false;
 		}
+	}
+
+	function joinTunnel() {
+		if (!joinCode) return;
+		onTunnelJoin?.(joinCode, tunnelName, tunnelPassword);
 	}
 
 	const latestPending = $derived(pendingResumes.length > 0 ? pendingResumes[0] : null);
@@ -818,11 +833,42 @@
 		{/if}
 
 		{#if mode === 'tunnel'}
-		{#if tunnelResult}
+		{#if joinCode}
+			<div class="controls">
+				<div class="field">
+					<label for="tunnel-join-code">tunnel code</label>
+					<input id="tunnel-join-code" class="input" type="text" value={joinCode} disabled readonly />
+				</div>
+				<div class="field">
+					<label for="tunnel-name-input">your display name <span class="optional">· optional</span></label>
+					<input
+						bind:value={tunnelName}
+						id="tunnel-name-input"
+						class="input"
+						type="text"
+						maxlength="32"
+						placeholder="anon"
+						onkeydown={(e) => e.key === 'Enter' && joinTunnel()}
+					/>
+				</div>
+				<div class="field">
+					<label for="tunnel-password-input">password <span class="optional">· if the tunnel has one</span></label>
+					<input
+						bind:value={tunnelPassword}
+						id="tunnel-password-input"
+						class="input"
+						type="password"
+						placeholder="no password"
+						onkeydown={(e) => e.key === 'Enter' && joinTunnel()}
+					/>
+				</div>
+			</div>
+			<button class="btn primary" onclick={joinTunnel}>Join tunnel ›</button>
+		{:else if tunnelResult}
 			<TunnelResultPanel
 				code={tunnelResult.code}
 				hasPassword={tunnelResult.hasPassword}
-				onEnter={() => onTunnelCreated?.(tunnelResult!.code, tunnelName.trim())}
+				onEnter={() => onTunnelCreated?.(tunnelResult!.code, tunnelName.trim(), tunnelPassword)}
 			/>
 		{:else}
 		<div class="controls">

@@ -1884,6 +1884,94 @@ pre code {
 	color: var(--text-dim);
 	padding: 4px 6px;
 }
+.tunnel-roster-empty {
+	font-size: 12px;
+	color: var(--text-faint);
+	padding: 4px 6px;
+}
+.tunnel-info-toggle {
+	margin-left: auto;
+	background: none;
+	border: none;
+	color: var(--text-faint);
+	font-size: 14px;
+	cursor: pointer;
+	padding: 2px 6px;
+}
+.tunnel-info-toggle:hover { color: var(--accent); }
+.tunnel-leave {
+	background: none;
+	border: 1px solid var(--border);
+	border-radius: 999px;
+	color: var(--text-dim);
+	font-family: var(--mono);
+	font-size: 12px;
+	padding: 5px 12px;
+	margin-left: 8px;
+	cursor: pointer;
+	transition: all var(--t-fast) var(--ease);
+}
+.tunnel-leave:hover { border-color: var(--accent); color: var(--accent); }
+.tunnel-info-banner {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 10px 22px;
+	border-bottom: 1px solid var(--border);
+	background: rgba(122, 156, 126, 0.06);
+	flex-wrap: wrap;
+}
+.tunnel-info-code {
+	font-family: var(--mono);
+	font-weight: 700;
+	font-size: 15px;
+	letter-spacing: 0.1em;
+	color: var(--accent);
+}
+.tunnel-info-url {
+	font-family: var(--mono);
+	font-size: 12px;
+	color: var(--text-faint);
+	flex: 1;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.tunnel-join-error {
+	padding: 40px 22px;
+	text-align: center;
+	color: var(--text-dim);
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 14px;
+}
+.tunnel-connecting {
+	margin: auto;
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	color: var(--text-faint);
+	font-size: 13px;
+	font-family: var(--mono);
+}
+.tunnel-spinner {
+	width: 14px;
+	height: 14px;
+	border-radius: 50%;
+	border: 2px solid var(--border);
+	border-top-color: var(--accent);
+	animation: tunnel-spin 0.8s linear infinite;
+}
+@keyframes tunnel-spin { to { transform: rotate(360deg); } }
+.tunnel-empty-hint {
+	margin: auto;
+	text-align: center;
+	color: var(--text-faint);
+	font-size: 13px;
+	max-width: 340px;
+	line-height: 1.6;
+}
 
 @media (max-width: 860px) {
 	.tunnel-room { grid-template-columns: 1fr; }

@@ -18,16 +18,22 @@
 	let logoSpinning = $state(false);
 
 	const tunnelCode = $derived($page.url.searchParams.get('tunnel'));
-	const tunnelName = $derived($page.url.searchParams.get('name') ?? '');
 
-	function enterTunnel(code: string, name?: string) {
-		const params = new URLSearchParams();
-		params.set('tunnel', code);
-		if (name?.trim()) params.set('name', name.trim());
-		goto(`/?${params}`, { keepFocus: true, noScroll: true });
+	// Room details are runtime state, not URL state — the URL only carries the
+	// code (so a link stays shareable); name/password never touch the URL.
+	let activeRoom = $state<{ code: string; name: string; password?: string } | null>(null);
+
+	function enterTunnel(code: string, name: string, password: string) {
+		goto(`/?tunnel=${code}`, { keepFocus: true, noScroll: true });
+		activeRoom = { code, name, password: password || undefined };
+	}
+
+	function joinTunnel(code: string, name: string, password: string) {
+		activeRoom = { code, name, password: password || undefined };
 	}
 
 	function leaveTunnel() {
+		activeRoom = null;
 		goto('/', { keepFocus: true, noScroll: true });
 	}
 
@@ -40,11 +46,6 @@
 
 <CookieConsent />
 
-{#if tunnelCode}
-<main class="wrap">
-	<TunnelRoom rawCode={tunnelCode} initialName={tunnelName} onLeave={leaveTunnel} />
-</main>
-{:else}
 <main class="wrap">
 	<div class="hero">
 		<button
@@ -68,41 +69,51 @@
 		</div>
 	</div>
 
-	<MyShares bind:this={myShares} />
+	{#if activeRoom}
+		<TunnelRoom
+			rawCode={activeRoom.code}
+			displayName={activeRoom.name}
+			password={activeRoom.password}
+			onLeave={leaveTunnel}
+		/>
+	{:else}
+		<MyShares bind:this={myShares} />
 
-	<div class="home-grid">
-		<section class="home-send">
-			<Uploader
-				bind:this={uploader}
-				globalPaste
-				onUploaded={() => myShares?.refresh()}
-				onTunnelCreated={(code, name) => enterTunnel(code, name)}
-			/>
-		</section>
+		<div class="home-grid">
+			<section class="home-send">
+				<Uploader
+					bind:this={uploader}
+					globalPaste
+					onUploaded={() => myShares?.refresh()}
+					onTunnelCreated={enterTunnel}
+					joinCode={tunnelCode}
+					onTunnelJoin={joinTunnel}
+				/>
+			</section>
 
-		<aside class="home-side">
-			<RetrievePanel />
+			<aside class="home-side">
+				<RetrievePanel />
 
-			<div class="panel home-tips hide-md">
-				<div class="panel-head">
-					<span class="tag">›</span> quick_facts
+				<div class="panel home-tips hide-md">
+					<div class="panel-head">
+						<span class="tag">›</span> quick_facts
+					</div>
+					<div class="panel-body">
+						<dl class="meta-list" style="border:none; padding:0; grid-template-columns:1fr;">
+							<dt>paste anywhere</dt>
+							<dd>Ctrl+V on this page shares your clipboard — text or screenshots</dd>
+							<dt>share code</dt>
+							<dd>every share gets a short code; type it here or scan the QR</dd>
+							<dt>lifetime</dt>
+							<dd>5 minutes to 7 days, then it's gone from storage</dd>
+							<dt>privacy</dt>
+							<dd>optional password; sensitive text is best shared with one</dd>
+							<dt>live tunnel</dt>
+							<dd>need back-and-forth instead of a one-way link? <button type="button" class="inline-link" onclick={() => uploader?.switchToTunnel()}>open a clipboard tunnel</button> — up to 4 people, real time</dd>
+						</dl>
+					</div>
 				</div>
-				<div class="panel-body">
-					<dl class="meta-list" style="border:none; padding:0; grid-template-columns:1fr;">
-						<dt>paste anywhere</dt>
-						<dd>Ctrl+V on this page shares your clipboard — text or screenshots</dd>
-						<dt>share code</dt>
-						<dd>every share gets a short code; type it here or scan the QR</dd>
-						<dt>lifetime</dt>
-						<dd>5 minutes to 7 days, then it's gone from storage</dd>
-						<dt>privacy</dt>
-						<dd>optional password; sensitive text is best shared with one</dd>
-						<dt>live tunnel</dt>
-						<dd>need back-and-forth instead of a one-way link? <button type="button" class="inline-link" onclick={() => uploader?.switchToTunnel()}>open a clipboard tunnel</button> — up to 4 people, real time</dd>
-					</dl>
-				</div>
-			</div>
-		</aside>
-	</div>
+			</aside>
+		</div>
+	{/if}
 </main>
-{/if}
