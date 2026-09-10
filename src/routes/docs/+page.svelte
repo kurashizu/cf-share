@@ -331,8 +331,8 @@ curl -fsS "${APP_URL}/p/AB3F"`}</code></pre>
 			the same 4-char input box on the home page can tell the two apart. Create
 			one from the <code>tunnel</code> tab in the home page's send panel,
 			optionally with a password; the code and an optional display name are
-			all anyone needs to join at <code>/tunnel/:code</code> — pasting the
-			code into the home page's code box also works.
+			all anyone needs to join — pasting the code into the home page's code
+			box, or opening <code>{APP_URL}/?tunnel=CODE</code> directly, both work.
 		</p>
 		<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-3">
 			Nothing is written to the database for message content — the last 10
