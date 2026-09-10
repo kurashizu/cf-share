@@ -29,6 +29,8 @@ to short-lived presigned S3 URLs; file bytes do not pass through the Worker.
 |--------|------|--------|---------|
 | GET | `/` | `src/routes/+page.svelte` | Upload page (drag-and-drop) |
 | GET | `/docs` | `src/routes/docs/+page.svelte` | API documentation |
+| GET | `/tunnel` | `src/routes/tunnel/+page.svelte` | Create or join a peer-to-peer clipboard tunnel |
+| GET | `/tunnel/:code` | `src/routes/tunnel/[code]/+page.svelte` | Tunnel room — live text/image/file relay between two peers |
 | GET | `/admin` | `src/routes/admin/+page.svelte` | Admin panel (shares + audit log, JWT cookie) |
 | GET | `/admin/login` | `src/routes/admin/login/+page.svelte` | Admin login form |
 | GET | `/d/:token` | `src/routes/d/[token]/` | Download page (password prompt if protected) |
@@ -49,6 +51,9 @@ to short-lived presigned S3 URLs; file bytes do not pass through the Worker.
 | POST | `/api/admin/login` | `+server.ts` | Submit admin password, set `cf_admin` JWT cookie (rate-limited 5/min/IP) |
 | POST | `/api/admin/logout` | `+server.ts` | Clear the `cf_admin` cookie |
 | GET/POST | `/api/cron/cleanup` | `+server.ts` | Manual cleanup trigger (requires `CRON_SECRET`) |
+| POST | `/api/tunnel` | `+server.ts` | Mint a new tunnel code (rate-limited 20/min/IP); unjoined tunnels expire after 30 minutes |
+| GET | `/api/tunnel/:code/ws` | `+server.ts` | Upgrade to a WebSocket, relayed by the `TunnelRoom` Durable Object (max 2 peers per code) |
+| GET | `/api/tunnel/:code/history` | `+server.ts` | Last up to 10 messages for a tunnel (for a peer that just joined) |
 
 ## Admin Panel
 

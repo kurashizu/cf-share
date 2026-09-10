@@ -241,6 +241,46 @@
 			ability to revoke them early from this browser.
 		</p>
 
+		<!-- ── Clipboard tunnels ──────────────────────────────────────────── -->
+		<hr class="my-8 border-neutral-200 dark:border-neutral-800" />
+		<h2 class="text-2xl font-bold mt-10 mb-4 text-neutral-900 dark:text-neutral-50" id="tunnel">
+			Clipboard tunnels
+		</h2>
+		<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-3">
+			A tunnel is a live, two-peer WebSocket relay at <code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">/tunnel/:code</code> — one side creates it, shares the 4-character code, the other joins. No polling, no account.
+		</p>
+
+		<h3 class="text-xl font-semibold mt-6 mb-3 text-neutral-800 dark:text-neutral-100">
+			<code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">POST /api/tunnel</code> — Create a tunnel
+		</h3>
+		<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-2">
+			Returns <code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">{"{code, joinTimeoutMs}"}</code>. If no second peer connects within
+			<code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">joinTimeoutMs</code> (30 minutes), the tunnel expires.
+		</p>
+
+		<h3 class="text-xl font-semibold mt-6 mb-3 text-neutral-800 dark:text-neutral-100">
+			<code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">GET /api/tunnel/:code/ws</code> — Join
+		</h3>
+		<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-2">
+			WebSocket upgrade. At most two peers per code; a third connection attempt is rejected. Send JSON frames:
+			<code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">{"{kind:'text', body}"}</code>,
+			<code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">{"{kind:'file', body /* data: URL */, filename}"}</code>, or
+			<code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">{"{kind:'share', shareToken, filename, sizeBytes}"}</code>.
+			Each message is relayed to the other peer only (never echoed back) and persisted as the newest of the last 10 messages for that code.
+			Text and inline files are capped at 2 MB; larger content should go through the normal upload flow and be sent as a
+			<code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">share</code> message instead — the server closes the socket (code 1009) on anything over the cap.
+		</p>
+		<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-2">
+			When both peers have disconnected, the tunnel's message history is deleted immediately.
+		</p>
+
+		<h3 class="text-xl font-semibold mt-6 mb-3 text-neutral-800 dark:text-neutral-100">
+			<code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">GET /api/tunnel/:code/history</code> — Catch up
+		</h3>
+		<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-2">
+			Returns <code class="bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono">{"{messages: [...]}"}</code>, oldest first — the last (up to 10) messages sent in the tunnel. Called once right after joining so the room doesn't render empty while waiting for the next WebSocket message.
+		</p>
+
 		<!-- ── Text / clipboard shares ────────────────────────────────────── -->
 		<hr class="my-8 border-neutral-200 dark:border-neutral-800" />
 		<h2 class="text-2xl font-bold mt-10 mb-4 text-neutral-900 dark:text-neutral-50" id="text">

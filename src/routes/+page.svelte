@@ -38,6 +38,7 @@
 			</p>
 			<p>Share a file or your clipboard — get a 4-character code and a short-lived link.</p>
 			<div class="hero-links">
+				<a href="/tunnel" class="hero-link">› Tunnel</a>
 				<a href="/docs" class="hero-link">› API documentation</a>
 				<SettingsPanel onCleared={() => myShares?.refresh()} />
 				<a href="/admin" class="hero-link">› Admin</a>

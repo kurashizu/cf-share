@@ -21,6 +21,11 @@ import { default as svelteWorker } from './build/worker.js';
 
 import { runCleanup } from './lib/s3/cleanup';
 
+// Durable Object class for clipboard tunnels — must be re-exported from the
+// actual deploy entry (this file) for the `TUNNEL` binding in
+// wrangler.jsonc to resolve `class_name: "TunnelRoom"`.
+export { TunnelRoom } from './lib/tunnel/room';
+
 export default {
 	async fetch(
 		request: Request,
