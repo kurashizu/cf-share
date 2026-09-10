@@ -46,3 +46,16 @@ CREATE TABLE IF NOT EXISTS audit_log (
 );
 CREATE INDEX IF NOT EXISTS idx_audit_ts          ON audit_log(ts DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_share_token ON audit_log(share_token, ts DESC);
+
+-- Clipboard-tunnel rooms. Message history/connections live in the
+-- TunnelRoomV2 Durable Object's own storage — this table only tracks
+-- whether a code has been minted (uniqueness + existence checks).
+CREATE TABLE IF NOT EXISTS tunnels (
+    code          TEXT PRIMARY KEY,
+    password_hash TEXT,
+    password_salt TEXT,
+    created_at    INTEGER NOT NULL,
+    created_ip    TEXT,
+    expires_at    INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_tunnels_expires ON tunnels(expires_at);

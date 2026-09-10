@@ -8,6 +8,7 @@ import {
 } from "@aws-sdk/client-s3";
 import type { ListObjectsV2CommandOutput } from "@aws-sdk/client-s3";
 import { createS3Client, bucketName } from "./client";
+import { pruneExpiredTunnels } from "../tunnel/cleanup";
 
 /**
  * Result of a single cleanup pass.
@@ -28,6 +29,8 @@ export interface CleanupResult {
       orphanObjectsSkipped: number;
       /** Audit log rows pruned (older than keepDays). */
       auditPrunedRows: number;
+      /** Unjoined tunnel codes pruned after their TTL. */
+      tunnelsPrunedRows: number;
       durationMs: number;
     }
 
@@ -374,7 +377,7 @@ export async function runCleanup(env: CloudflareEnv): Promise<CleanupResult> {
   const start = Date.now();
   const bucket = bucketName(env);
 
-  const [shares, multipartResult, orphanResult, quotaPrunedRows, auditPrunedRows] =
+  const [shares, multipartResult, orphanResult, quotaPrunedRows, auditPrunedRows, tunnelsPrunedRows] =
       await Promise.all([
         runExpiredShareCleanup(env, {
           batchSize: Number(env.CLEANUP_BATCH_SIZE ?? 500),
@@ -397,6 +400,7 @@ export async function runCleanup(env: CloudflareEnv): Promise<CleanupResult> {
         ),
         pruneOldQuota(env, Number(env.CLEANUP_QUOTA_KEEP_DAYS ?? 30)),
         pruneOldAuditLog(env, Number(env.CLEANUP_AUDIT_KEEP_DAYS ?? 30)),
+        pruneExpiredTunnels(env),
       ]);
 
     return {
@@ -407,6 +411,7 @@ export async function runCleanup(env: CloudflareEnv): Promise<CleanupResult> {
       orphanObjectsScanned: orphanResult.scanned,
       orphanObjectsSkipped: orphanResult.skipped,
       auditPrunedRows,
+      tunnelsPrunedRows,
       durationMs: Date.now() - start,
     };
 }

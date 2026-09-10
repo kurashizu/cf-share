@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
 	import FileItem, { type UploadState } from './FileItem.svelte';
 	import ResultPanel from './ResultPanel.svelte';
 	import { DEFAULT_PROXY_MAX_FILE_SIZE } from '@/lib/config/proxy';
@@ -733,7 +734,12 @@
 					mode = 'text';
 					queueMicrotask(() => textareaRef?.focus());
 				}}
-			>text / clipboard</button>
+			>clipboard</button>
+			<button
+				type="button"
+				class="mode-tab mode-tab-tunnel"
+				onclick={() => goto('/tunnel')}
+			>tunnel</button>
 		</div>
 
 		<div class="controls">

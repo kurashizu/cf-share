@@ -9,7 +9,15 @@ export async function audit(
   entry: {
     ip: string;
     action:
-      "init" | "complete" | "download" | "expire" | "delete" | "admin_view";
+      | "init"
+      | "complete"
+      | "download"
+      | "expire"
+      | "delete"
+      | "admin_view"
+      | "tunnel_create"
+      | "tunnel_join";
+    /** Reused for tunnel codes too — same TEXT column, different address space (see lib/share/token.ts). */
     shareToken?: string | null;
     status: number;
     detail?: Record<string, unknown>;

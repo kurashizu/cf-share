@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { normalizeToken } from '@/lib/share/token';
+	import { normalizeTunnelCode } from '@/lib/tunnel/code';
 
 	// Share codes are a fixed 4 chars of Crockford Base32 (see lib/share/token.ts).
 	const LEN = 4;
@@ -22,9 +23,9 @@
 			.replace(/[^0-9ABCDEFGHJKMNPQRSTVWXYZ]/g, '');
 	}
 
-	/** Accept a full share URL or a bare code and return the token part. */
+	/** Accept a full share/tunnel URL or a bare code and return the code part. */
 	function extractToken(raw: string): string {
-		const m = raw.match(/\/(?:d|p)\/([0-9A-Za-z_-]{4,6})/);
+		const m = raw.match(/\/(?:d|p|tunnel)\/([0-9A-Za-z_-]{4,6})/);
 		return sanitize(m ? m[1] : raw).slice(0, LEN);
 	}
 
@@ -113,6 +114,13 @@
 
 	async function submit() {
 		if (checking) return;
+
+		const tunnelCode = normalizeTunnelCode(code);
+		if (tunnelCode) {
+			await goto(`/tunnel/${tunnelCode}`);
+			return;
+		}
+
 		const candidate = normalizeToken(code);
 		if (!candidate || candidate.length !== LEN) return;
 		checking = true;
@@ -140,8 +148,8 @@
 
 <div class="panel retrieve-panel">
 	<div class="panel-head">
-		<span class="tag">›</span> receive
-		<span class="meta">enter a share code</span>
+		<span class="tag">›</span> share code
+		<span class="meta">share or tunnel code</span>
 	</div>
 	<div class="panel-body">
 		<div

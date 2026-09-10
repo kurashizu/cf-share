@@ -21,6 +21,8 @@ import { default as svelteWorker } from './build/worker.js';
 
 import { runCleanup } from './lib/s3/cleanup';
 
+export { TunnelRoomV2 } from './lib/tunnel/room';
+
 export default {
 	async fetch(
 		request: Request,
