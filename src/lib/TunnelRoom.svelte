@@ -36,19 +36,18 @@
 	let copiedLink = $state(false);
 	let showInfo = $state(false);
 	let composeRef = $state<HTMLTextAreaElement | null>(null);
-	let copiedLatest = $state(false);
+	let copiedSeq = $state<number | null>(null);
 
-	const latestText = $derived([...items].reverse().find((i) => i.kind === 'text')?.body ?? null);
-
-	async function copyLatest() {
-		if (!latestText) return;
+	async function copyText(text: string, seq: number) {
 		try {
-			await navigator.clipboard.writeText(latestText);
+			await navigator.clipboard.writeText(text);
 		} catch {
 			// ignore
 		}
-		copiedLatest = true;
-		setTimeout(() => (copiedLatest = false), 1200);
+		copiedSeq = seq;
+		setTimeout(() => {
+			if (copiedSeq === seq) copiedSeq = null;
+		}, 1200);
 	}
 
 	function autoGrow() {
@@ -297,7 +296,26 @@
 							<div class="tunnel-msg-body">
 								<div class="tunnel-msg-name">{item.from}</div>
 								{#if item.kind === 'text'}
-									<div class="tunnel-bubble">{item.body}</div>
+									<div class="tunnel-bubble-row">
+										<div class="tunnel-bubble">{item.body}</div>
+										<button
+											class="tunnel-copy-icon"
+											title="copy"
+											aria-label="copy message"
+											onclick={() => copyText(item.body ?? '', item.seq)}
+										>
+											{#if copiedSeq === item.seq}
+												<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+													<path d="M3 8.5l3 3 7-7" />
+												</svg>
+											{:else}
+												<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+													<rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
+													<path d="M3 10.5V3.5A1.5 1.5 0 0 1 4.5 2H10.5" />
+												</svg>
+											{/if}
+										</button>
+									</div>
 								{:else if item.kind === 'file' && isImage(item.contentType)}
 									<div class="tunnel-bubble tunnel-bubble-file">
 										<img src={fileUrl(item)} alt={item.filename} class="tunnel-img" />
@@ -353,34 +371,22 @@
 			</div>
 		{/if}
 	</div>
-	<aside class="tunnel-side">
-		<div class="panel tunnel-tools">
-			<div class="panel-head">
-				<span class="tag">›</span> tools
-			</div>
-			<div class="panel-body panel-body-flush">
-				<button class="tunnel-tool-btn" disabled={!latestText} onclick={copyLatest}>
-					{copiedLatest ? 'Copied ✓' : 'Copy latest'}
-				</button>
-			</div>
+	<aside class="tunnel-roster panel">
+		<div class="panel-head">
+			<span class="tag">›</span> online
 		</div>
-		<div class="panel tunnel-roster">
-			<div class="panel-head">
-				<span class="tag">›</span> online
-			</div>
-			<div class="panel-body panel-body-flush">
-				<ul class="tunnel-roster-list">
-					{#each roster as name (name)}
-						<li class="tunnel-roster-item">
-							<span class="tunnel-msg-avatar sm" style="background:{avatarColor(name)}">{avatarLetter(name)}</span>
-							{name}
-						</li>
-					{/each}
-					{#if roster.length === 0}
-						<li class="tunnel-roster-empty">no one yet</li>
-					{/if}
-				</ul>
-			</div>
+		<div class="panel-body panel-body-flush">
+			<ul class="tunnel-roster-list">
+				{#each roster as name (name)}
+					<li class="tunnel-roster-item">
+						<span class="tunnel-msg-avatar sm" style="background:{avatarColor(name)}">{avatarLetter(name)}</span>
+						{name}
+					</li>
+				{/each}
+				{#if roster.length === 0}
+					<li class="tunnel-roster-empty">no one yet</li>
+				{/if}
+			</ul>
 		</div>
 	</aside>
 </div>

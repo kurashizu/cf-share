@@ -1783,6 +1783,38 @@ pre code {
 	background: rgba(122, 156, 126, 0.16);
 	border-color: rgba(122, 156, 126, 0.3);
 }
+.tunnel-bubble-row {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+.tunnel-msg.mine .tunnel-bubble-row { flex-direction: row-reverse; }
+.tunnel-copy-icon {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 22px;
+	height: 22px;
+	background: none;
+	border: none;
+	border-radius: 5px;
+	color: var(--text-faint);
+	cursor: pointer;
+	opacity: 0;
+	transition: opacity var(--t-fast) var(--ease), color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+}
+.tunnel-bubble-row:hover .tunnel-copy-icon,
+.tunnel-copy-icon:focus-visible {
+	opacity: 1;
+}
+.tunnel-copy-icon:hover {
+	color: var(--accent);
+	background: rgba(110, 140, 118, 0.1);
+}
+@media (hover: none) {
+	.tunnel-copy-icon { opacity: 1; }
+}
 .tunnel-bubble-file { padding: 8px; }
 .tunnel-img {
 	max-width: 260px;
@@ -1871,31 +1903,10 @@ pre code {
 	box-shadow: 0 0 0 3px rgba(91, 138, 102, 0.16);
 	outline: none;
 }
-.tunnel-side {
-	display: flex;
-	flex-direction: column;
-	gap: 18px;
+.tunnel-roster {
 	position: sticky;
 	top: 0;
 }
-.tunnel-tool-btn {
-	width: 100%;
-	background: none;
-	border: none;
-	border-radius: 0;
-	color: var(--text-dim);
-	font-family: var(--mono);
-	font-size: 13px;
-	text-align: left;
-	padding: 12px 16px;
-	cursor: pointer;
-	transition: all var(--t-fast) var(--ease);
-}
-.tunnel-tool-btn:hover:not(:disabled) {
-	background: rgba(110, 140, 118, 0.08);
-	color: var(--accent);
-}
-.tunnel-tool-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .tunnel-roster-list {
 	list-style: none;
 	margin: 0;
