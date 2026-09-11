@@ -371,10 +371,10 @@
 										</button>
 									</div>
 								{:else if item.kind === 'file' && isImage(item.contentType)}
-									<div class="tunnel-bubble tunnel-bubble-file">
+									<a class="tunnel-bubble tunnel-bubble-file" href={fileUrl(item)} download={item.filename} title="click to download">
 										<img src={fileUrl(item)} alt={item.filename} class="tunnel-img" />
 										<div class="tunnel-file-meta">{item.filename} · {formatBytes(item.sizeBytes ?? 0)}</div>
-									</div>
+									</a>
 								{:else if item.kind === 'file'}
 									<a class="tunnel-bubble tunnel-file-card" href={fileUrl(item)} download={item.filename}>
 										<span class="tunnel-file-name">{item.filename}</span>

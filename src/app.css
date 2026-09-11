@@ -1815,7 +1815,12 @@ pre code {
 @media (hover: none) {
 	.tunnel-copy-icon { opacity: 1; }
 }
-.tunnel-bubble-file { padding: 8px; }
+.tunnel-bubble-file {
+	display: block;
+	padding: 8px;
+	text-decoration: none;
+	color: var(--text);
+}
 .tunnel-img {
 	max-width: 260px;
 	max-height: 260px;

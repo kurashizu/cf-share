@@ -15,7 +15,9 @@ const config = {
 		csrf: { trustedOrigins: ['*'] },
 		// CSP for rendered pages. SvelteKit nonces its own inline hydration
 		// script under mode "auto". connect-src includes the S3 endpoint
-		// because uploads PUT directly to presigned URLs from the browser
+		// because uploads PUT directly to presigned URLs from the browser;
+		// img-src needs it too since /api/tunnel/:code/file/:seq 307-redirects
+		// <img> tags straight to a presigned S3 GET URL
 		// (keep in sync with lib/config/app.ts S3_PUBLIC_ENDPOINT).
 		csp: {
 			mode: 'auto',
@@ -23,7 +25,7 @@ const config = {
 				'default-src': ['self'],
 				'script-src': ['self'],
 				'style-src': ['self', 'unsafe-inline'],
-				'img-src': ['self', 'data:'],
+				'img-src': ['self', 'data:', 'https://s3api.022025.xyz'],
 				'connect-src': ['self', 'https://s3api.022025.xyz'],
 				'object-src': ['none'],
 				'base-uri': ['self'],
