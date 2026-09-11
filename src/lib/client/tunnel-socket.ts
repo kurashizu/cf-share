@@ -32,9 +32,14 @@ export type IncomingMessage =
 			createdAt: number;
 	  }
 	| { type: 'presence'; event: 'joined' | 'left'; displayName: string; id: string }
-	| { type: 'roster'; members: string[]; max: number }
+	| { type: 'roster'; members: RosterMember[]; max: number }
 	| { type: 'error'; message: string }
 	| { type: 'pong' };
+
+export interface RosterMember {
+	id: string;
+	displayName: string;
+}
 
 export interface HistoryItem {
 	seq: number;

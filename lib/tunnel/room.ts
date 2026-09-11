@@ -103,7 +103,9 @@ export class TunnelRoomV2 extends DurableObject<CloudflareEnv> {
 			fromId: attachment.id,
 			presenceEvent: "joined",
 		});
-		this.broadcast({ type: "presence", event: "joined", displayName, id: attachment.id });
+		// Broadcast to existing peers only — the new connection will see this
+		// same event once, via the history replay below, not twice.
+		this.broadcast({ type: "presence", event: "joined", displayName, id: attachment.id }, server);
 		server.send(JSON.stringify({ type: "welcome", id: attachment.id }));
 		await this.sendHistoryTo(server);
 		this.broadcastRoster();
@@ -323,7 +325,7 @@ export class TunnelRoomV2 extends DurableObject<CloudflareEnv> {
 	private broadcastRoster(): void {
 		const roster = this.ctx.getWebSockets().map((ws) => {
 			const a = ws.deserializeAttachment() as PeerAttachment | null;
-			return a?.displayName ?? "anon";
+			return { id: a?.id ?? crypto.randomUUID(), displayName: a?.displayName ?? "anon" };
 		});
 		this.broadcast({ type: "roster", members: roster, max: MAX_PEERS });
 	}

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { normalizeTunnelCode } from '@/lib/tunnel/code';
-	import { TunnelSocket, TUNNEL_INLINE_MAX_BYTES, type IncomingMessage, type HistoryItem } from '$lib/client/tunnel-socket';
+	import { TunnelSocket, TUNNEL_INLINE_MAX_BYTES, type IncomingMessage, type HistoryItem, type RosterMember } from '$lib/client/tunnel-socket';
 	import { avatarColor, avatarLetter } from '$lib/client/avatar';
 
 	let {
@@ -26,7 +26,7 @@
 	let socket: TunnelSocket | null = null;
 	let myId = $state('');
 	let items = $state<HistoryItem[]>([]);
-	let roster = $state<string[]>([]);
+	let roster = $state<RosterMember[]>([]);
 	let rosterMax = $state(4);
 	let disconnected = $state(false);
 	let composeText = $state('');
@@ -155,13 +155,25 @@
 		const input = e.currentTarget as HTMLInputElement;
 		const file = input.files?.[0];
 		input.value = '';
-		if (!file || !socket) return;
+		if (!file) return;
+		await sendFile(file);
+	}
+
+	async function sendFile(file: File) {
+		if (!socket) return;
 		if (file.size > TUNNEL_INLINE_MAX_BYTES) {
 			await sendAsRegularShare(file);
 			return;
 		}
 		const result = await socket.sendFile(file);
 		if (!result.ok) await sendAsRegularShare(file);
+	}
+
+	function onPaste(e: ClipboardEvent) {
+		const files = Array.from(e.clipboardData?.files ?? []);
+		if (files.length === 0) return;
+		e.preventDefault();
+		void sendFile(files[0]);
 	}
 
 	async function sendAsRegularShare(file: File) {
@@ -360,6 +372,7 @@
 					bind:value={composeText}
 					disabled={disconnected || connecting}
 					oninput={autoGrow}
+					onpaste={onPaste}
 					onkeydown={(e) => {
 						if (e.key === 'Enter' && !e.shiftKey) {
 							e.preventDefault();
@@ -377,10 +390,10 @@
 		</div>
 		<div class="panel-body panel-body-flush">
 			<ul class="tunnel-roster-list">
-				{#each roster as name (name)}
+				{#each roster as member (member.id)}
 					<li class="tunnel-roster-item">
-						<span class="tunnel-msg-avatar sm" style="background:{avatarColor(name)}">{avatarLetter(name)}</span>
-						{name}
+						<span class="tunnel-msg-avatar sm" style="background:{avatarColor(member.displayName)}">{avatarLetter(member.displayName)}</span>
+						{member.displayName}
 					</li>
 				{/each}
 				{#if roster.length === 0}
