@@ -38,6 +38,7 @@
 	let composeRef = $state<HTMLTextAreaElement | null>(null);
 	let copiedSeq = $state<number | null>(null);
 	let windowDragActive = $state(false);
+	let lightboxItem = $state<HistoryItem | null>(null);
 
 	async function copyText(text: string, seq: number) {
 		try {
@@ -49,6 +50,35 @@
 		setTimeout(() => {
 			if (copiedSeq === seq) copiedSeq = null;
 		}, 1200);
+	}
+
+	async function copyImage(item: HistoryItem, seq: number) {
+		try {
+			const res = await fetch(fileUrl(item));
+			const blob = await res.blob();
+			// The clipboard image API only accepts png — re-encode through a
+			// canvas if the source came in as something else (e.g. jpeg/webp).
+			const pngBlob = blob.type === 'image/png' ? blob : await toPngBlob(blob);
+			await navigator.clipboard.write([new ClipboardItem({ 'image/png': pngBlob })]);
+		} catch {
+			// ignore — clipboard image writes aren't supported everywhere
+		}
+		copiedSeq = seq;
+		setTimeout(() => {
+			if (copiedSeq === seq) copiedSeq = null;
+		}, 1200);
+	}
+
+	async function toPngBlob(blob: Blob): Promise<Blob> {
+		const bitmap = await createImageBitmap(blob);
+		const canvas = document.createElement('canvas');
+		canvas.width = bitmap.width;
+		canvas.height = bitmap.height;
+		const ctx = canvas.getContext('2d');
+		ctx?.drawImage(bitmap, 0, 0);
+		return new Promise((resolve, reject) => {
+			canvas.toBlob((out) => (out ? resolve(out) : reject(new Error('toBlob failed'))), 'image/png');
+		});
 	}
 
 	function autoGrow() {
@@ -299,7 +329,13 @@
 	});
 
 	onDestroy(() => socket?.close());
+
+	function onWindowKeydown(e: KeyboardEvent) {
+		if (e.key === 'Escape' && lightboxItem) lightboxItem = null;
+	}
 </script>
+
+<svelte:window onkeydown={onWindowKeydown} />
 
 <svelte:head>
 	<title>KRSZ Share — tunnel {code}</title>
@@ -341,6 +377,30 @@
 						it's quiet in here — type a message, paste an image, or drop a file to get started
 					</div>
 				{/if}
+				{#snippet copyIcon(done: boolean)}
+					{#if done}
+						<svg viewBox="0 0 16 16" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+							<path d="M3 8.5l3 3 7-7" />
+						</svg>
+					{:else}
+						<svg viewBox="0 0 16 16" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+							<rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
+							<path d="M3 10.5V3.5A1.5 1.5 0 0 1 4.5 2H10.5" />
+						</svg>
+					{/if}
+				{/snippet}
+				{#snippet downloadIcon(done: boolean)}
+					{#if done}
+						<svg viewBox="0 0 16 16" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+							<path d="M3 8.5l3 3 7-7" />
+						</svg>
+					{:else}
+						<svg viewBox="0 0 16 16" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+							<path d="M8 2v8m0 0l-3-3m3 3l3-3" />
+							<path d="M3 12.5v0.5a1.5 1.5 0 0 0 1.5 1.5h7a1.5 1.5 0 0 0 1.5-1.5v-0.5" />
+						</svg>
+					{/if}
+				{/snippet}
 				{#each items as item (item.seq + '-' + item.createdAt)}
 					{#if item.kind === 'presence'}
 						<div class="tunnel-presence">· · {item.from} {item.presenceEvent === 'joined' ? 'joined' : 'left'} the tunnel · ·</div>
@@ -358,28 +418,51 @@
 											aria-label="copy message"
 											onclick={() => copyText(item.body ?? '', item.seq)}
 										>
-											{#if copiedSeq === item.seq}
-												<svg viewBox="0 0 16 16" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-													<path d="M3 8.5l3 3 7-7" />
-												</svg>
-											{:else}
-												<svg viewBox="0 0 16 16" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
-													<rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
-													<path d="M3 10.5V3.5A1.5 1.5 0 0 1 4.5 2H10.5" />
-												</svg>
-											{/if}
+											{@render copyIcon(copiedSeq === item.seq)}
 										</button>
 									</div>
 								{:else if item.kind === 'file' && isImage(item.contentType)}
-									<a class="tunnel-bubble tunnel-bubble-file" href={fileUrl(item)} download={item.filename} title="click to download">
-										<img src={fileUrl(item)} alt={item.filename} class="tunnel-img" />
-										<div class="tunnel-file-meta">{item.filename} · {formatBytes(item.sizeBytes ?? 0)}</div>
-									</a>
+									<div class="tunnel-bubble-row">
+										<button class="tunnel-bubble tunnel-bubble-file" onclick={() => (lightboxItem = item)} title="click to preview">
+											<img src={fileUrl(item)} alt={item.filename} class="tunnel-img" />
+											<div class="tunnel-file-meta">{item.filename} · {formatBytes(item.sizeBytes ?? 0)}</div>
+										</button>
+										<div class="tunnel-icon-stack">
+											<button
+												class="tunnel-copy-icon"
+												title="copy image"
+												aria-label="copy image"
+												onclick={() => copyImage(item, item.seq)}
+											>
+												{@render copyIcon(copiedSeq === item.seq)}
+											</button>
+											<a
+												class="tunnel-copy-icon"
+												href={fileUrl(item)}
+												download={item.filename}
+												title="download image"
+												aria-label="download image"
+											>
+												{@render downloadIcon(false)}
+											</a>
+										</div>
+									</div>
 								{:else if item.kind === 'file'}
-									<a class="tunnel-bubble tunnel-file-card" href={fileUrl(item)} download={item.filename}>
-										<span class="tunnel-file-name">{item.filename}</span>
-										<span class="tunnel-file-size">{formatBytes(item.sizeBytes ?? 0)}</span>
-									</a>
+									<div class="tunnel-bubble-row">
+										<div class="tunnel-bubble tunnel-file-card">
+											<span class="tunnel-file-name">{item.filename}</span>
+											<span class="tunnel-file-size">{formatBytes(item.sizeBytes ?? 0)}</span>
+										</div>
+										<a
+											class="tunnel-copy-icon"
+											href={fileUrl(item)}
+											download={item.filename}
+											title="download file"
+											aria-label="download file"
+										>
+											{@render downloadIcon(false)}
+										</a>
+									</div>
 								{:else if item.kind === 'share-link'}
 									<a class="tunnel-bubble tunnel-file-card" href={item.shareUrl} target="_blank" rel="noopener">
 										<span class="tunnel-file-name">{item.filename}</span>
@@ -449,6 +532,25 @@
 	<div class="global-drag-overlay" aria-hidden="true">
 		<div class="global-drag-tip">
 			↓ Drop file anywhere to send it into the tunnel
+		</div>
+	</div>
+{/if}
+
+{#if lightboxItem}
+	<div
+		class="modal-overlay"
+		role="presentation"
+		onclick={(e) => {
+			if (e.currentTarget === e.target) lightboxItem = null;
+		}}
+	>
+		<div class="image-lightbox" role="dialog" aria-modal="true" aria-label={lightboxItem.filename}>
+			<img src={fileUrl(lightboxItem)} alt={lightboxItem.filename} />
+			<div class="image-lightbox-bar">
+				<span>{lightboxItem.filename} · {formatBytes(lightboxItem.sizeBytes ?? 0)}</span>
+				<a class="btn sm outline" href={fileUrl(lightboxItem)} download={lightboxItem.filename}>Download</a>
+				<button class="btn sm outline" onclick={() => (lightboxItem = null)}>Close</button>
+			</div>
 		</div>
 	</div>
 {/if}
