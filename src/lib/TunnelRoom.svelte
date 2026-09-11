@@ -37,6 +37,7 @@
 	let showInfo = $state(false);
 	let composeRef = $state<HTMLTextAreaElement | null>(null);
 	let copiedSeq = $state<number | null>(null);
+	let windowDragActive = $state(false);
 
 	async function copyText(text: string, seq: number) {
 		try {
@@ -256,6 +257,47 @@
 	}
 
 	onMount(connect);
+
+	// Global drag-and-drop + paste, matching the home page's Uploader — no
+	// need to focus the compose box first.
+	onMount(() => {
+		let dragCounter = 0;
+		const onDragEnter = (e: DragEvent) => {
+			if (e.dataTransfer?.types?.includes('Files')) {
+				dragCounter++;
+				windowDragActive = true;
+			}
+		};
+		const onDragLeave = () => {
+			dragCounter = Math.max(0, dragCounter - 1);
+			if (dragCounter === 0) windowDragActive = false;
+		};
+		const onDragOver = (e: DragEvent) => {
+			if (e.dataTransfer?.types?.includes('Files')) e.preventDefault();
+		};
+		const onDropGlobal = (e: DragEvent) => {
+			dragCounter = 0;
+			windowDragActive = false;
+			const files = Array.from(e.dataTransfer?.files ?? []);
+			if (files.length > 0) {
+				e.preventDefault();
+				void sendFile(files[0]);
+			}
+		};
+		window.addEventListener('dragenter', onDragEnter);
+		window.addEventListener('dragleave', onDragLeave);
+		window.addEventListener('dragover', onDragOver);
+		window.addEventListener('drop', onDropGlobal);
+		window.addEventListener('paste', onPaste);
+		return () => {
+			window.removeEventListener('dragenter', onDragEnter);
+			window.removeEventListener('dragleave', onDragLeave);
+			window.removeEventListener('dragover', onDragOver);
+			window.removeEventListener('drop', onDropGlobal);
+			window.removeEventListener('paste', onPaste);
+		};
+	});
+
 	onDestroy(() => socket?.close());
 </script>
 
@@ -372,7 +414,6 @@
 					bind:value={composeText}
 					disabled={disconnected || connecting}
 					oninput={autoGrow}
-					onpaste={onPaste}
 					onkeydown={(e) => {
 						if (e.key === 'Enter' && !e.shiftKey) {
 							e.preventDefault();
@@ -403,3 +444,11 @@
 		</div>
 	</aside>
 </div>
+
+{#if windowDragActive}
+	<div class="global-drag-overlay" aria-hidden="true">
+		<div class="global-drag-tip">
+			↓ Drop file anywhere to send it into the tunnel
+		</div>
+	</div>
+{/if}
