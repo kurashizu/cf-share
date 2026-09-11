@@ -258,8 +258,8 @@
 			<span class="meta">
 				{#if connecting}connecting…{:else if disconnected}disconnected{:else}{roster.length}/{rosterMax} online{/if}
 			</span>
-			<button class="tunnel-info-toggle" onclick={() => (showInfo = !showInfo)} title="tunnel info">[ info ]</button>
-			<button class="tunnel-leave" onclick={leave}>‹ leave</button>
+			<button class="tunnel-info-toggle" onclick={() => (showInfo = !showInfo)} title="tunnel info">Info</button>
+			<button class="tunnel-leave" onclick={leave}>Leave</button>
 		</div>
 
 		{#if showInfo}
@@ -304,7 +304,7 @@
 											aria-label="copy message"
 											onclick={() => copyText(item.body ?? '', item.seq)}
 										>
-											{copiedSeq === item.seq ? '[ copied ]' : '[ copy ]'}
+											{copiedSeq === item.seq ? 'Copied ✓' : 'Copy'}
 										</button>
 									</div>
 								{:else if item.kind === 'file' && isImage(item.contentType)}
@@ -314,15 +314,13 @@
 									</div>
 								{:else if item.kind === 'file'}
 									<a class="tunnel-bubble tunnel-file-card" href={fileUrl(item)} download={item.filename}>
-										<span class="tunnel-file-icon">[ file ]</span>
 										<span class="tunnel-file-name">{item.filename}</span>
 										<span class="tunnel-file-size">{formatBytes(item.sizeBytes ?? 0)}</span>
 									</a>
 								{:else if item.kind === 'share-link'}
 									<a class="tunnel-bubble tunnel-file-card" href={item.shareUrl} target="_blank" rel="noopener">
-										<span class="tunnel-file-icon">[ link ]</span>
 										<span class="tunnel-file-name">{item.filename}</span>
-										<span class="tunnel-file-size">{formatBytes(item.sizeBytes ?? 0)}</span>
+										<span class="tunnel-file-size">{formatBytes(item.sizeBytes ?? 0)} · shared link</span>
 									</a>
 								{/if}
 								<div class="tunnel-msg-time">{formatTime(item.createdAt)}</div>
