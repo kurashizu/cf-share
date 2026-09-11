@@ -36,18 +36,19 @@
 	let copiedLink = $state(false);
 	let showInfo = $state(false);
 	let composeRef = $state<HTMLTextAreaElement | null>(null);
-	let copiedSeq = $state<number | null>(null);
+	let copiedLatest = $state(false);
 
-	async function copyText(text: string, seq: number) {
+	const latestText = $derived([...items].reverse().find((i) => i.kind === 'text')?.body ?? null);
+
+	async function copyLatest() {
+		if (!latestText) return;
 		try {
-			await navigator.clipboard.writeText(text);
+			await navigator.clipboard.writeText(latestText);
 		} catch {
 			// ignore
 		}
-		copiedSeq = seq;
-		setTimeout(() => {
-			if (copiedSeq === seq) copiedSeq = null;
-		}, 1200);
+		copiedLatest = true;
+		setTimeout(() => (copiedLatest = false), 1200);
 	}
 
 	function autoGrow() {
@@ -296,17 +297,7 @@
 							<div class="tunnel-msg-body">
 								<div class="tunnel-msg-name">{item.from}</div>
 								{#if item.kind === 'text'}
-									<div class="tunnel-bubble tunnel-bubble-text">
-										{item.body}
-										<button
-											class="tunnel-copy-btn"
-											title="copy"
-											aria-label="copy message"
-											onclick={() => copyText(item.body ?? '', item.seq)}
-										>
-											{copiedSeq === item.seq ? 'Copied ✓' : 'Copy'}
-										</button>
-									</div>
+									<div class="tunnel-bubble">{item.body}</div>
 								{:else if item.kind === 'file' && isImage(item.contentType)}
 									<div class="tunnel-bubble tunnel-bubble-file">
 										<img src={fileUrl(item)} alt={item.filename} class="tunnel-img" />
@@ -362,22 +353,34 @@
 			</div>
 		{/if}
 	</div>
-	<aside class="tunnel-roster panel">
-		<div class="panel-head">
-			<span class="tag">›</span> online
+	<aside class="tunnel-side">
+		<div class="panel tunnel-tools">
+			<div class="panel-head">
+				<span class="tag">›</span> tools
+			</div>
+			<div class="panel-body panel-body-flush">
+				<button class="tunnel-tool-btn" disabled={!latestText} onclick={copyLatest}>
+					{copiedLatest ? 'Copied ✓' : 'Copy latest'}
+				</button>
+			</div>
 		</div>
-		<div class="panel-body panel-body-flush">
-			<ul class="tunnel-roster-list">
-				{#each roster as name (name)}
-					<li class="tunnel-roster-item">
-						<span class="tunnel-msg-avatar sm" style="background:{avatarColor(name)}">{avatarLetter(name)}</span>
-						{name}
-					</li>
-				{/each}
-				{#if roster.length === 0}
-					<li class="tunnel-roster-empty">no one yet</li>
-				{/if}
-			</ul>
+		<div class="panel tunnel-roster">
+			<div class="panel-head">
+				<span class="tag">›</span> online
+			</div>
+			<div class="panel-body panel-body-flush">
+				<ul class="tunnel-roster-list">
+					{#each roster as name (name)}
+						<li class="tunnel-roster-item">
+							<span class="tunnel-msg-avatar sm" style="background:{avatarColor(name)}">{avatarLetter(name)}</span>
+							{name}
+						</li>
+					{/each}
+					{#if roster.length === 0}
+						<li class="tunnel-roster-empty">no one yet</li>
+					{/if}
+				</ul>
+			</div>
 		</div>
 	</aside>
 </div>
