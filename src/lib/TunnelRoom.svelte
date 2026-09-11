@@ -36,6 +36,19 @@
 	let copiedLink = $state(false);
 	let showInfo = $state(false);
 	let composeRef = $state<HTMLTextAreaElement | null>(null);
+	let copiedSeq = $state<number | null>(null);
+
+	async function copyText(text: string, seq: number) {
+		try {
+			await navigator.clipboard.writeText(text);
+		} catch {
+			// ignore
+		}
+		copiedSeq = seq;
+		setTimeout(() => {
+			if (copiedSeq === seq) copiedSeq = null;
+		}, 1200);
+	}
 
 	function autoGrow() {
 		if (!composeRef) return;
@@ -283,7 +296,17 @@
 							<div class="tunnel-msg-body">
 								<div class="tunnel-msg-name">{item.from}</div>
 								{#if item.kind === 'text'}
-									<div class="tunnel-bubble">{item.body}</div>
+									<div class="tunnel-bubble tunnel-bubble-text">
+										{item.body}
+										<button
+											class="tunnel-copy-btn"
+											title="copy"
+											aria-label="copy message"
+											onclick={() => copyText(item.body ?? '', item.seq)}
+										>
+											{copiedSeq === item.seq ? '[ copied ]' : '[ copy ]'}
+										</button>
+									</div>
 								{:else if item.kind === 'file' && isImage(item.contentType)}
 									<div class="tunnel-bubble tunnel-bubble-file">
 										<img src={fileUrl(item)} alt={item.filename} class="tunnel-img" />
